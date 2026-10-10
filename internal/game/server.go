@@ -591,6 +591,7 @@ type Peer struct {
 	lastSystemAt     time.Time
 	sessionHash      string
 	attributes       map[string]float64
+	ping             int
 }
 type digState struct {
 	X, Y, Z, Block, Held int
@@ -638,6 +639,8 @@ type Message struct {
 	Rm             []uint16 `json:"rm"`
 	All            bool     `json:"all"`
 	Part           string   `json:"part"`
+	Ping           int      `json:"ping,omitempty"`
+	Latency        int      `json:"latency,omitempty"`
 }
 
 func parseMessage(data []byte) (Message, error) {
@@ -796,7 +799,8 @@ func (s *Server) upgrade(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		if kind == websocket.TextMessage {
-			if string(data) == "ping" {
+			msgStr := string(data)
+			if msgStr == "ping" || strings.HasPrefix(msgStr, "ping:") {
 				p.enqueue(websocket.TextMessage, []byte("pong"))
 			} else if m, err := parseMessage(data); err == nil {
 				if p.room == nil {
@@ -1302,6 +1306,13 @@ func (s *Server) message(p *Peer, m Message) {
 			broadcastWorld(r, map[string]any{"t": "chat", "id": p.id, "from": p.name, "m": string(v)}, nil)
 			s.emit(api.PlayerChat, r, p, map[string]any{"message": string(v)})
 		}
+	case "latency":
+		if m.Ping >= 0 {
+			p.ping = m.Ping
+		} else if m.Latency >= 0 {
+			p.ping = m.Latency
+		}
+		return
 	case "view":
 		p.rd = min(12, max(2, m.RD))
 		if r.Infinite {

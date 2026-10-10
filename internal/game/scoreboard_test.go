@@ -29,6 +29,7 @@ func TestScoreboardLifecycleAndCommands(t *testing.T) {
 	}
 
 	// 1. 测试默认状态世界概览计分板构建
+	ap.ping = 35
 	defaultPkt := s.buildScoreboardPacket(r, ap)
 	if defaultPkt == nil {
 		t.Fatal("expected default scoreboard packet to be non-nil")
@@ -36,9 +37,25 @@ func TestScoreboardLifecycleAndCommands(t *testing.T) {
 	if defaultPkt["objective"] != "world_overview" {
 		t.Fatalf("expected default objective 'world_overview', got %v", defaultPkt["objective"])
 	}
+	footer, ok := defaultPkt["footer"].(map[string]any)
+	if !ok || footer["ping"] != 35 {
+		t.Fatalf("expected footer ping 35, got %+v", defaultPkt["footer"])
+	}
 	entries, ok := defaultPkt["entries"].([]ScoreEntry)
 	if !ok || len(entries) < 2 {
 		t.Fatalf("expected default entries list with players and time, got %+v", defaultPkt["entries"])
+	}
+	foundPing := false
+	for _, e := range entries {
+		if e.Name == "服务器延迟" {
+			foundPing = true
+			if e.Score != 35 || e.Badge != "35ms" {
+				t.Fatalf("unexpected ping entry: %+v", e)
+			}
+		}
+	}
+	if !foundPing {
+		t.Fatal("expected '服务器延迟' entry in default scoreboard")
 	}
 
 	// 2. 普通玩家尝试修改计分板应被拦截

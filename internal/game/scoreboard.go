@@ -244,7 +244,13 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 				}
 			}
 		}
-
+		footerMap := map[string]any{
+			"server": r.Name,
+			"mode":   r.Mode,
+		}
+		if p != nil {
+			footerMap["ping"] = p.ping
+		}
 		return map[string]any{
 			"t":         "scoreboard",
 			"enabled":   true,
@@ -252,10 +258,7 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 			"title":     obj.DisplayName,
 			"slot":      "sidebar",
 			"entries":   entries,
-			"footer": map[string]any{
-				"server": r.Name,
-				"mode":   r.Mode,
-			},
+			"footer":    footerMap,
 		}
 	}
 
@@ -292,6 +295,21 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		},
 	}
 
+	// 添加服务器网络延迟
+	if p != nil {
+		pingVal := p.ping
+		pingBadge := fmt.Sprintf("%dms", pingVal)
+		if pingVal <= 0 {
+			pingBadge = "<1ms"
+		}
+		entries = append(entries, ScoreEntry{
+			Name:  "服务器延迟",
+			Score: pingVal,
+			Icon:  "⚡",
+			Badge: pingBadge,
+		})
+	}
+
 	// 添加当前玩家自身的健康与状态
 	if p != nil && p.state != nil {
 		hp := int(math.Ceil(p.state.Health))
@@ -319,6 +337,15 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		}
 	}
 
+	footerMap := map[string]any{
+		"server": r.Name,
+		"mode":   strings.ToUpper(r.Mode),
+		"dim":    strings.ToUpper(r.root().ID),
+	}
+	if p != nil {
+		footerMap["ping"] = p.ping
+	}
+
 	return map[string]any{
 		"t":         "scoreboard",
 		"enabled":   true,
@@ -326,11 +353,7 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		"title":     "WEBCRAFT ONLINE",
 		"slot":      "sidebar",
 		"entries":   entries,
-		"footer": map[string]any{
-			"server": r.Name,
-			"mode":   strings.ToUpper(r.Mode),
-			"dim":    strings.ToUpper(r.root().ID),
-		},
+		"footer":    footerMap,
 	}
 }
 
