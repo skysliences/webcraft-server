@@ -39,7 +39,7 @@ Linux ARM64、macOS 替换对应的包名。下载页提供大小、SHA-256 和 
 | 地址 | 示例 | 谁部署 |
 | --- | --- | --- |
 | 统一客户端网站 | `https://play.example.com` | 网站运营者，所有玩家访问这里 |
-| 核心账号服务 | `https://accounts.example.com` | 网站运营者，统一注册登录与固定 ID |
+| 核心账号服务 | `https://login.ccraft.app` | 官方/网站运营者，统一注册登录与固定 ID |
 | 你的 Go 游戏服公开地址 | `https://private.example.com` | 服主，本服 `/api/`、`/ws/` 可访问 |
 
 在下载页打开“核心账号中心”，使用同一个核心账号登录；若账号中心要求登录，再输入已有账号，无需重新注册。完成玩家名字设置后，在“服主接入自己的游戏服务器”表单填写：
@@ -58,7 +58,7 @@ Linux ARM64、macOS 替换对应的包名。下载页提供大小、SHA-256 和 
 
 ```dotenv
 ACCOUNT_MODE=central
-AUTH_ISSUER_URL=https://accounts.example.com
+AUTH_ISSUER_URL=https://login.ccraft.app
 AUTH_SERVER_ID=复制账号中心返回的服务器ID
 AUTH_PUBLIC_KEY=复制账号中心返回的公钥
 GAME_PUBLIC_URL=https://play.example.com

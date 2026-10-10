@@ -10,6 +10,8 @@ set -a
 . ./server.env
 set +a
 if [ "${ACCOUNT_MODE:-central}" != legacy ]; then
+  AUTH_ISSUER_URL="${AUTH_ISSUER_URL:-https://login.ccraft.app}"
+  export AUTH_ISSUER_URL
   if [ -z "${AUTH_ISSUER_URL:-}" ] || [ -z "${AUTH_SERVER_ID:-}" ] || [ -z "${AUTH_PUBLIC_KEY:-}" ] || [ -z "${AUTH_CALLBACK_URL:-}" ] || [ -z "${GAME_PUBLIC_URL:-}" ]; then
     echo '核心账号配置不完整：需要 issuer、公钥、本服注册 ID、回调 URL 和游戏网页 URL。' >&2
     exit 1

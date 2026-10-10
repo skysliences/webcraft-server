@@ -1,6 +1,6 @@
 # 统一游戏客户端网站部署
 
-玩家只访问统一的 `https://play.example.com` 网站。该网页负责注册、登录、名字设置、游戏首页、本地单机与私人服连接。核心账号服务部署在 `https://accounts.example.com`，保存账号和固定 ID；各服主部署自己的 Go 游戏服，例如 `https://private.example.com`，保存世界、背包、OP 和插件。
+玩家只访问统一的 `https://play.example.com` 网站。该网页负责注册、登录、名字设置、游戏首页、本地单机与私人服连接。核心账号服务部署在 `https://login.ccraft.app`，保存账号和固定 ID；各服主部署自己的 Go 游戏服，例如 `https://private.example.com`，保存世界、背包、OP 和插件。
 
 私人游戏服无需运行 Node 前端或另建账号网页。游戏服务器分发包的 `start.sh` 运行 Go 即可，`start-frontend.sh` 只是供统一网站运营者选择使用的客户端启动器。客户端网站不会因某个私人服停止而无法显示首页。
 
@@ -14,7 +14,7 @@
 HOST=127.0.0.1
 PORT=8080
 CLIENT_PUBLIC_URL=https://play.example.com
-IDENTITY_PUBLIC_URL=https://accounts.example.com
+IDENTITY_PUBLIC_URL=https://login.ccraft.app
 # 固定账号请求目的地；可与公开 issuer 不同，不能由浏览器指定。
 IDENTITY_PROXY_URL=http://127.0.0.1:8082
 # 只填写实际位于网站 Node 前面的反向代理 IP，不使用通配符。
@@ -179,7 +179,7 @@ Node 会在可信链末尾追加自己的实际 socket 对端。未经信任的�
 服主在核心登记统一网站地址与自己 Go 服务的回调，配置：
 
 ```dotenv
-AUTH_ISSUER_URL=https://accounts.example.com
+AUTH_ISSUER_URL=https://login.ccraft.app
 AUTH_SERVER_ID=本服登记ID
 AUTH_PUBLIC_KEY=核心公钥
 GAME_PUBLIC_URL=https://play.example.com

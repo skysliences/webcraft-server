@@ -51,7 +51,11 @@ func main() {
 	config.WorldID = os.Getenv("WORLD_ID")
 	config.WorldName = env("WORLD_NAME", "世界")
 	config.WorldMode = env("WORLD_MODE", "survival")
-	config.IdentityIssuer = os.Getenv("AUTH_ISSUER_URL")
+	issuer := os.Getenv("AUTH_ISSUER_URL")
+	if issuer == "" && (os.Getenv("AUTH_SERVER_ID") != "" || os.Getenv("AUTH_CALLBACK_URL") != "" || strings.ToLower(os.Getenv("ACCOUNT_MODE")) == "central") {
+		issuer = "https://login.ccraft.app"
+	}
+	config.IdentityIssuer = issuer
 	config.IdentityServerID = os.Getenv("AUTH_SERVER_ID")
 	config.IdentityPublicKey = os.Getenv("AUTH_PUBLIC_KEY")
 	config.IdentityCallback = os.Getenv("AUTH_CALLBACK_URL")

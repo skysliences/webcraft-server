@@ -78,7 +78,7 @@ cp deployment/server.env.example server.env
 | `DEFAULT_MODE` | `survival` | 默认游戏模式 (`survival` / `creative`) |
 | `SINGLE_WORLD` | `true` | 是否开启单世界归档模式 |
 | `AUTH_PUBLIC_KEY` | `""` | 信任的 WebCraft 账号服务 Ed25519 公钥 (用于微服务验签) |
-| `AUTH_ISSUER_URL` | `http://127.0.0.1:8082` | 账号认证服务地址 |
+| `AUTH_ISSUER_URL` | `https://login.ccraft.app` | 默认账号认证服务地址 |
 | `PLUGIN_DIR` | `./plugins` | 插件加载目录 |
 
 ---
