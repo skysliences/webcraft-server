@@ -1128,6 +1128,7 @@ func (s *Server) binary(p *Peer, data []byte) {
 			} else {
 				s.stream(p)
 			}
+			s.pickupNearPlayer(p.room, p)
 		}
 	} else if len(data) == 6 && data[0] == 2 && p.room.Mode == "creative" && !p.room.Infinite {
 		wire := binary.LittleEndian.Uint32(data[1:])

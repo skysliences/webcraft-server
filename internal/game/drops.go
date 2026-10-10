@@ -11,7 +11,7 @@ import (
 
 const maxWorldDrops = 2048
 const dropLifetimeMS = 300000
-const dropPickupDelayMS = 600
+const dropPickupDelayMS = 150
 
 // ItemDrop is authoritative and persisted with the room. Age advances while
 // the world has players; restarting the process never resets its remaining life.
@@ -306,18 +306,30 @@ func (s *Server) moveDrop(r *Room, d *ItemDrop) {
 	}
 }
 func (s *Server) pickupReachable(p *Peer, d *ItemDrop) bool {
-	if p.closed || p.state.Dead || p.state.Inv == nil || !p.knownDrops[d.ID] || math.Hypot(p.state.X-d.X, p.state.Z-d.Z) > 1.35 || d.Y < p.state.Y-.5 || d.Y > p.state.Y+1.8 {
+	if p.closed || p.state.Dead || p.state.Inv == nil || !p.knownDrops[d.ID] || math.Hypot(p.state.X-d.X, p.state.Z-d.Z) > 2.0 || d.Y < p.state.Y-.75 || d.Y > p.state.Y+2.2 {
 		return false
 	}
-	dx, dy, dz := d.X-p.state.X, d.Y+.125-p.state.Y-.7, d.Z-p.state.Z
+	dx, dy, dz := d.X-p.state.X, d.Y+.25-p.state.Y-1.2, d.Z-p.state.Z
 	n := max(1, int(math.Ceil(math.Sqrt(dx*dx+dy*dy+dz*dz)/.2)))
 	for i := 1; i < n; i++ {
 		t := float64(i) / float64(n)
-		if s.solid(p.room, p.state.X+dx*t, p.state.Y+.7+dy*t, p.state.Z+dz*t) {
+		if s.solid(p.room, p.state.X+dx*t, p.state.Y+1.2+dy*t, p.state.Z+dz*t) {
 			return false
 		}
 	}
 	return true
+}
+func (s *Server) pickupNearPlayer(r *Room, p *Peer) {
+	if r == nil || p == nil || p.state == nil || p.state.Dead || p.state.Inv == nil {
+		return
+	}
+	for _, d := range r.Drops {
+		if d != nil && d.PickupDelayMS <= 0 && d.AgeMS >= d.retryAt {
+			if math.Abs(p.state.X-d.X) <= 2.2 && math.Abs(p.state.Z-d.Z) <= 2.2 {
+				s.pickupDrop(r, d)
+			}
+		}
+	}
 }
 func (s *Server) pickupDrop(r *Room, d *ItemDrop) {
 	if d.PickupDelayMS > 0 || d.AgeMS < d.retryAt {

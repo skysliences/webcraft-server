@@ -300,7 +300,7 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		pingVal := p.ping
 		pingBadge := fmt.Sprintf("%dms", pingVal)
 		if pingVal <= 0 {
-			pingBadge = "<1ms"
+			pingBadge = "--ms"
 		}
 		entries = append(entries, ScoreEntry{
 			Name:  "服务器延迟",
