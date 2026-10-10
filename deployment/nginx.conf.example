@@ -1,0 +1,47 @@
+# Private Go game server only. Players use the shared play.example.com client.
+# Replace hosts/certificate paths. Run ./start.sh; no local webpage is required.
+# Configure GAME_PUBLIC_URL/ALLOWED_ORIGINS with that shared client origin.
+# Register AUTH_CALLBACK_URL=https://private.example.com/api/auth/callback.
+# Go listens on 127.0.0.1:8081; expose only this TLS proxy to players.
+# Validate on your own host using nginx -t before reloading.
+server {
+    listen 80;
+    server_name private.example.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name private.example.com;
+    ssl_certificate /etc/letsencrypt/live/private.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/private.example.com/privkey.pem;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        # Upgrade already carries Sec-WebSocket-Protocol to the Go server.
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+    }
+    location /healthz {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+    }
+    location / { return 404; }
+}
+
+# The shared website is deployed separately; its Node/static Nginx templates
+# and explicit frontend/core proxy trust settings are in CLIENT.md.

@@ -1,0 +1,8 @@
+{
+  "id": "server-auth",
+  "name": "本服邀请码注册",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "server-auth",
+  "config": { "inviteCode": "change-me" }
+}

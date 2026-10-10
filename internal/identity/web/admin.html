@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mcraft · 账号管理</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div id="login-panel" class="login-panel" hidden>
+    <div class="brand-mark" aria-hidden="true">M</div>
+    <p class="eyebrow">MCRAFT ACCOUNT</p>
+    <h1>账号管理后台</h1>
+    <p class="muted">使用核心管理员账号登录。管理权限独立于游戏服务器 OP。</p>
+    <form id="login-form">
+      <label>账号<input name="username" autocomplete="username" required maxlength="32" placeholder="核心管理员账号"></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required maxlength="72"></label>
+      <p id="login-error" class="error" role="alert"></p>
+      <button type="submit" class="primary">登录管理后台</button>
+    </form>
+    <a class="subtle-link" href="/">返回核心账号中心</a>
+  </div>
+  <div id="console" class="console" hidden>
+    <aside>
+      <div class="wordmark"><span class="brand-mark" aria-hidden="true">M</span><div><strong>Mcraft</strong><span>核心账号管理</span></div></div>
+      <nav aria-label="管理导航">
+        <button data-view="overview" class="nav-item active"><span aria-hidden="true">◈</span>运营概览</button>
+        <button data-view="users" class="nav-item"><span aria-hidden="true">◎</span>用户管理</button>
+        <button data-view="online" class="nav-item"><span aria-hidden="true">◉</span>网站在线</button>
+        <button data-view="servers" class="nav-item"><span aria-hidden="true">▤</span>已登记服务器</button>
+      </nav>
+      <div class="aside-bottom"><span class="status-dot"></span>独立核心账号服务<a href="/">核心账号中心 ↗</a></div>
+    </aside>
+    <div class="workspace">
+      <header><div class="breadcrumb">核心服务 <span>/</span> <strong id="breadcrumb-view">运营概览</strong></div><div class="header-actions"><span id="admin-name" class="identity-chip"></span><button id="logout" class="quiet">退出</button></div></header>
+      <main>
+        <div class="page-heading"><div><p class="eyebrow">ACCOUNT CONSOLE</p><h1 id="view-title">运营概览</h1><p id="view-description" class="muted"></p></div><button id="refresh" class="secondary">刷新数据</button></div>
+        <div id="message" class="notice" role="status" hidden></div>
+        <div id="view" aria-live="polite"><div class="loading">正在读取账号数据……</div></div>
+      </main>
+      <footer><span id="issuer"></span><span id="updated"></span></footer>
+    </div>
+  </div>
+  <dialog id="detail-dialog"><div class="dialog-heading"><h2 id="dialog-title">用户详情</h2><button id="dialog-close" class="icon-button" aria-label="关闭">×</button></div><div id="dialog-content"></div></dialog>
+  <script type="module" src="/admin/admin.js"></script>
+</body>
+</html>

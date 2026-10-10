@@ -1,0 +1,36 @@
+# Replace hostnames and certificate paths, then start account-start.sh.
+# This server exposes the independent core account website/API/admin console.
+# These geo/map blocks belong to the nginx http context. The default trusts no
+# external forwarding chain. Opt in only the fixed website proxy's egress IP.
+geo $identity_trusted_website_proxy {
+    default 0;
+    # 192.0.2.40/32 1;  # Replace with the actual website proxy egress address.
+}
+map "$identity_trusted_website_proxy:$http_x_forwarded_for" $identity_client_chain {
+    default $remote_addr;
+    "~^1:.+" "$http_x_forwarded_for, $remote_addr";
+}
+server {
+    listen 80;
+    server_name accounts.example.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name accounts.example.com;
+    ssl_certificate /etc/letsencrypt/live/accounts.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/accounts.example.com/privkey.pem;
+
+    client_max_body_size 1m;
+    location / {
+        proxy_pass http://127.0.0.1:8082;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Only explicitly allowlisted website peers preserve a chain; append
+        # their actual socket address. Other visitors get $remote_addr only.
+        proxy_set_header X-Forwarded-For $identity_client_chain;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 20s;
+    }
+}

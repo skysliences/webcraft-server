@@ -1,0 +1,21 @@
+# Binaries and build outputs
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Data directories and persistence
+data/
+rooms/
+worlds/
+*.bak
+*.tmp
+.env
+server.env
+
+# System
+.DS_Store
