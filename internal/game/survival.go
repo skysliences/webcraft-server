@@ -376,10 +376,10 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		old := s.block(r, x, y, z)
-		if old != 0 && old != 9 && old != 68 && !(isTorch(placed) && s.rules.Kinds[old] == 5 && !isTorch(old) && baseName(s.rules.Names[old]) != "Fire") {
+		if old != 0 && !isFluid(old) && !(isTorch(placed) && s.rules.Kinds[old] == 5 && !isTorch(old) && baseName(s.rules.Names[old]) != "Fire") {
 			return
 		}
-		if isTorch(placed) && (old == 9 || old == 68) {
+		if isTorch(placed) && isFluid(old) {
 			return
 		}
 		for other := range r.Peers {

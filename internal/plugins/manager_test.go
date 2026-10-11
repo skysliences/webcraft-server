@@ -139,3 +139,10 @@ func TestDuplicateCommandAndCrash(t *testing.T) {
 		t.Fatal(m.Status())
 	}
 }
+
+func TestCustomUISpec(t *testing.T) {
+	m := Load("", "", 0)
+	if _, ok := m.specs["player.custom_ui.submit"]; !ok {
+		t.Fatalf("missing player.custom_ui.submit spec! all specs: %d", len(m.specs))
+	}
+}

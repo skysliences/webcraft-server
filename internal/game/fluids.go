@@ -131,6 +131,104 @@ func (s *Server) isWashable(b int) bool {
 	return false
 }
 
+func (s *Server) canFlowInto(r *Room, x, y, z int, water bool) bool {
+	if !r.inside(x, z) || y < 1 || y >= 127 {
+		return false
+	}
+	b := s.block(r, x, y, z)
+	if b == 0 || s.isWashable(b) {
+		return true
+	}
+	if water && isLava(b) {
+		return true
+	}
+	if !water && isWater(b) {
+		return true
+	}
+	return false
+}
+
+func (s *Server) canFlowDown(r *Room, x, y, z int, water bool) bool {
+	return s.canFlowInto(r, x, y-1, z, water)
+}
+
+// 检查 (x, y, z) 下方是否有阻止流体继续向下的实体地面支撑
+func (s *Server) hasSolidSupport(r *Room, x, y, z int, water bool) bool {
+	if y <= 1 {
+		return true
+	}
+	below := s.block(r, x, y-1, z)
+	if below == 0 || s.isWashable(below) {
+		return false
+	}
+	if water && (isWater(below) || isLava(below)) {
+		return false
+	}
+	if !water && (isLava(below) || isWater(below)) {
+		return false
+	}
+	return true
+}
+
+func (s *Server) canPathThrough(r *Room, x, y, z int, water bool) bool {
+	if !r.inside(x, z) || y < 1 || y >= 127 {
+		return false
+	}
+	b := s.block(r, x, y, z)
+	if b == 0 || s.isWashable(b) {
+		return true
+	}
+	if water && isWater(b) {
+		return true
+	}
+	if !water && isLava(b) {
+		return true
+	}
+	return false
+}
+
+// 计算从 (x, y, z) 沿某一方向出发到达最近落差边缘的最短距离 (BFS, 最多 4 步)
+func (s *Server) distanceToDrop(r *Room, x, y, z int, dx, dz int, water bool) int {
+	type node struct {
+		x, z int
+		dist int
+	}
+	startNX, startNZ := x+dx, z+dz
+	if !s.canPathThrough(r, startNX, y, startNZ, water) {
+		return 999
+	}
+	if s.canFlowDown(r, startNX, y, startNZ, water) {
+		return 1
+	}
+
+	queue := []node{{x: startNX, z: startNZ, dist: 1}}
+	visited := map[uint64]bool{blockKey(startNX, y, startNZ): true, blockKey(x, y, z): true}
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.dist >= 4 {
+			continue
+		}
+		for _, step := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+			nx, nz := cur.x+step[0], cur.z+step[1]
+			k := blockKey(nx, y, nz)
+			if visited[k] {
+				continue
+			}
+			visited[k] = true
+			if !s.canPathThrough(r, nx, y, nz, water) {
+				continue
+			}
+			if s.canFlowDown(r, nx, y, nz, water) {
+				return cur.dist + 1
+			}
+			queue = append(queue, node{x: nx, z: nz, dist: cur.dist + 1})
+		}
+	}
+	return 999
+}
+
 func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 	if !r.inside(x, z) || y < 1 || y >= 127 {
 		return
@@ -145,7 +243,8 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 
 	water := isWater(b)
 	below := s.block(r, x, y-1, z)
-	// 1. 优先向下流动 (瀑布流体动画)
+
+	// 1. 优先向下流动 (瀑布流体)
 	if below == 0 || s.isWashable(below) || (water && isLava(below)) || (!water && isWater(below)) {
 		if water && isLava(below) {
 			s.setBlock(r, x, y-1, z, blkCobblestone, 0)
@@ -175,7 +274,12 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 		return
 	}
 
-	// 2. 遇阻挡时向水平四周逐级扩散
+	// 如果下方是悬空/流体（例如垂直落水或下方的流动水），绝不在空中向水平方向横向扩散！
+	if !s.hasSolidSupport(r, x, y, z, water) {
+		return
+	}
+
+	// 2. 下方遇实心方块阻挡时，向水平四周逐级扩散
 	curLvl := 0
 	maxSpread := 7
 	flowBase := blkWaterFlowMin
@@ -195,7 +299,25 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 		if !water && r.dimName() != "nether" {
 			nextBlock = flowBase + (curLvl / 2)
 		}
-		for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+
+		// 落差优先寻路 (Slope / Drop Seeking)
+		directions := [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+		distMap := make([]int, 4)
+		minDist := 999
+		for i, d := range directions {
+			dist := s.distanceToDrop(r, x, y, z, d[0], d[1], water)
+			distMap[i] = dist
+			if dist < minDist {
+				minDist = dist
+			}
+		}
+
+		for i, d := range directions {
+			// 如果附近 4 格内有落差边缘，水流只朝最近的落差点方向流去，绝不向远离边缘的内侧漫延
+			if minDist <= 4 && distMap[i] > minDist {
+				continue
+			}
+
 			nx, nz := x+d[0], z+d[1]
 			if !r.inside(nx, nz) {
 				continue
@@ -209,7 +331,17 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 						}
 					}
 				}
-				s.setBlock(r, nx, y, nz, nextBlock, 0)
+
+				// 如果目标格到达了边缘（下方是空气落差），直接以垂直流形态进入并立即向下调度
+				placedBlock := nextBlock
+				if s.canFlowDown(r, nx, y, nz, water) {
+					placedBlock = blkWaterFalling
+					if !water {
+						placedBlock = blkLavaFalling
+					}
+				}
+
+				s.setBlock(r, nx, y, nz, placedBlock, 0)
 				s.scheduleFluid(r, nx, y, nz)
 			} else if (water && isLava(target)) || (!water && isWater(target)) {
 				s.fluidReaction(r, nx, y, nz)
@@ -227,22 +359,30 @@ func (s *Server) traceFluidSource(r *Room, x, y, z int, water bool, visited map[
 	if (water && b == blkWaterSource) || (!water && b == blkLavaSource) {
 		return true
 	}
-	up := s.block(r, x, y+1, z)
-	if (water && isWater(up)) || (!water && isLava(up)) {
-		return true
-	}
-	curLvl := waterLevel(b)
-	if !water {
-		curLvl = lavaLevel(b)
-	}
-	if curLvl <= 0 {
-		return false
-	}
 	k := blockKey(x, y, z)
 	if visited[k] {
 		return false
 	}
 	visited[k] = true
+
+	up := s.block(r, x, y+1, z)
+	if (water && isWater(up)) || (!water && isLava(up)) {
+		if s.traceFluidSource(r, x, y+1, z, water, visited) {
+			return true
+		}
+	}
+
+	falling := (water && b == blkWaterFalling) || (!water && b == blkLavaFalling)
+	curLvl := -1
+	if water {
+		curLvl = waterLevel(b)
+	} else {
+		curLvl = lavaLevel(b)
+	}
+
+	if curLvl <= 0 && !falling {
+		return false
+	}
 
 	for _, d := range [][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
 		nx, nz := x+d[0], z+d[1]
@@ -253,9 +393,17 @@ func (s *Server) traceFluidSource(r *Room, x, y, z int, water bool, visited map[
 		} else if !water && isLava(nb) {
 			nlvl = lavaLevel(nb)
 		}
-		if nlvl >= 0 && nlvl < curLvl {
-			if s.traceFluidSource(r, nx, y, nz, water, visited) {
-				return true
+		if falling {
+			if (water && isWater(nb)) || (!water && isLava(nb)) {
+				if s.traceFluidSource(r, nx, y, nz, water, visited) {
+					return true
+				}
+			}
+		} else {
+			if nlvl >= 0 && nlvl < curLvl {
+				if s.traceFluidSource(r, nx, y, nz, water, visited) {
+					return true
+				}
 			}
 		}
 	}
@@ -380,8 +528,18 @@ func init() {
 		}
 	})
 
-	// 4. 挖掘时检查四周流体并调度
+	// 4. 挖掘与放置时检查四周流体并调度
 	onBreak(func(s *Server, p *Peer, x, y, z, old int) {
+		r := p.room
+		for _, d := range faceOffsets {
+			nx, ny, nz := x+d[0], y+d[1], z+d[2]
+			if isFluid(s.block(r, nx, ny, nz)) {
+				s.scheduleFluid(r, nx, ny, nz)
+			}
+		}
+	})
+
+	onAfterPlace(func(s *Server, p *Peer, x, y, z, placed int, m Message) {
 		r := p.room
 		for _, d := range faceOffsets {
 			nx, ny, nz := x+d[0], y+d[1], z+d[2]
