@@ -244,6 +244,7 @@ API v1 是本项目的插件协议，不加载 Bukkit/Spigot 的 Java JAR 或 Go
 | 铁砧修理/重命名 | `anvil.use.before` | `anvil.used`, `anvil.damaged` | 修理：`left`, `right`, `result`, `cost`, **`name`**；损坏：`x`, `y`, `z`, `old_block`, `new_block`, `fall_distance` |
 | 动物互动 | `animal.breed.before`, `animal.tame.before`, `animal.shear.before` | `animal.bred`, `animal.tamed`, `animal.sheared` | `mob_id`, `mob_type`；繁殖/驯服带 `item`；剪毛带 `wool_count` |
 | 反作弊违规 | — | `player.anticheat.violation` | `reason`, `x`, `y`, `z`, `fromX`, `fromY`, `fromZ` |
+| 自定义界面交互 | — | `player.custom_ui.submit` | `uiId`, `button`, `values`（表单各输入项键值对）, `customData`（插件透传上下文）, `epoch` |
 
 生存采集事件发生在采集时间、距离、工具和容器内容校验通过后，背包满时仍可采集。`item.spawn.before` 在破坏方块前执行，取消只抑制该次掉落，不阻止方块破坏；`count` 只能改为该物品单个堆叠上限内的正整数。需要保护方块时取消 `block.break.before`。`block.broken` 后发布 `item.spawned`，随后按重力移动，并在 600ms 后尝试附近拾取。
 
@@ -263,6 +264,10 @@ SDK 的 `Context` 提供以下动作。动作在当前游戏操作完成后，�
 | `c.Broadcast(worldID, text)` | `broadcast` | 世界内广播系统消息 |
 | `c.SpawnMob(worldID, "cow", x, y, z)` | `spawn_mob` | cow/pig/sheep/chicken/zombie/spider；校验位置、地面及世界 32 只上限 |
 | `c.SetTime(worldID, ticks)` | `set_time` | 绝对世界 tick，0–2^48；触发可取消时间前事件并广播 |
+| `c.OpenCustomUI(worldID, playerID, ui)` / `c.OpenCustomUIFor(e, ui)` | `custom_ui` | 向玩家推送自定义弹窗表单（输入框/多按钮/透传数据），客户端呈现原汁原味 Minecraft 浮雕面板 |
+| `c.CloseCustomUI(worldID, playerID, uiID)` / `c.CloseCustomUIFor(e, uiID)` | `close_custom_ui` | 主动关闭玩家当前打开的指定 ID 自定义弹窗 |
+| `c.UpdateSign(worldID, x, y, z, lines)` | `write_sign` | 免物品与手持校验直接覆写指定木牌 4 行文字并广播 |
+| `c.OpenContainer(worldID, playerID, x, y, z)` | `open_container` | 授权为玩家主动打开指定坐标处的箱子/末影箱容器窗口 |
 | `c.GiveItem(e, "Bread", 3)` | `give_item` | 生存物品内部英文名或协议 `itemId`；1–2304 个；背包放不下时整次拒绝 |
 | `c.DropItem(worldID, "Oak Log", 3, x, y, z)` | `drop_item` | 生存世界生成地面物品，1–2304 个，按堆叠上限拆分；X/Z 0.125–1023.875，Y 0–127.75；触发掉落事件 |
 | `c.SetBlock(worldID, x, y, z, blockID)` | `set_block` | X/Z 0–1023，Y 1–127；创造方块 0–67，生存使用现有规则 ID；不覆盖已创建的容器 |
@@ -691,4 +696,62 @@ Go 服声明 `sv.placeInventoryAck=true` 后，客户端在生存放置时立即
   - `/anticheat status`：查询当前服务端生效的反作弊参数详情
   - `/anticheat reload`：从 `anticheat.json` 重新加载反作弊配置并即刻生效
   - `/anticheat toggle`：一键开启/临时关闭反作弊检测
+
+
+## 16 位方块和物品注册表
+
+方块 ID 最大为 `65535`。方块、方块状态和普通物品使用同一个背包 ID 空间，不能冲突；`0` 是空气，`255` 保留为 API v1 回退标记。已有 ID 保持不变。自定义条目默认从 `1024` 分配，也可显式请求可用 ID。注册失败会拒绝启动并保留存档；插件取消注册则跳过该条目，不发送成功事件。
+
+在 `OnEnable` 中调用 `Context.RegisterBlock(BlockDefinition)` 和 `Context.RegisterItem(ItemDefinition)`：
+
+```go
+p.OnEnable = func(c *plugin.Context) error {
+    c.RegisterBlock(plugin.BlockDefinition{
+        Key: "myplugin:ruby_block", Name: "红宝石方块",
+        ModelBlock: 21, Hardness: 2, Stack: 64,
+    })
+    c.RegisterItem(plugin.ItemDefinition{
+        Key: "myplugin:ruby_wand", Name: "红宝石法杖",
+        ModelItem: 276, Stack: 1, Durability: 200,
+    })
+    return nil
+}
+```
+
+Key 的命名空间必须等于 `plugin.json` 的插件 ID。`ModelBlock` 是现有原生方块模型 ID，决定形状、贴图、碰撞、遮挡和发光；`Hardness` 决定挖掘时间。此接口复用现有模型，不支持上传任意模型或新纹理。物品 `ModelItem` 复用现有图标及工具/食物等基础行为；`Durability` 为新物品的耐久，默认 0，耐久物品 Stack 必须为 1。`PlacesKey` 可关联已注册方块。行为扩展继续监听现有放置、破坏、背包、掉落、拾取、使用和伤害事件，Lore 不作为核心硬编码规则。
+
+注册时产生 `registry.register.before`、`registry.registered` 或 `registry.register.rejected`；入服发送注册表前产生可取消的 `registry.sync.before`，提交欢迎消息后产生 `registry.synced`。字段 `reason`、`actor`、`target`、`entry`、`registryVersion` 都只读，Monitor 不能取消。注册期间创建世界/物品的插件动作仍进入常规规则与事件入口。方块放置、破坏和改变事件的 `blockKey`、`oldBlockKey` 标识自定义条目，原来的数字字段、完整物品快照和 API v1 都保留。
+
+服务端将定义和分配结果原子保存到 `DATA_DIR/registry.json`。同一个 Key 的定义、模型和 ID 必须保持稳定；重启和停用插件不会复用其 ID 或删除存档中的方块。不能删除 registry.json 后继续加载自定义世界；未知 ID 会阻止读取，原存档保留。注册表随服务端备份和恢复。插件重载新增注册项时，现有玩家需要重新进入以同步注册表。
+
+通过 `GET /api/registry` 查看已分配 ID；`GET /api/events` 查看事件字段。使用 `c.GiveItem(e, "myplugin:ruby_block", count)` 和 `c.SetBlockKey(worldID, x, y, z, "myplugin:ruby_block")` 可避免依赖自动分配的数字 ID。现有 `GiveStack`、`SetBlock`、`SetBlocks` 支持注册后的 ID 和完整元数据，仍受插件保护。
+
+可运行示例：`backend/examples/block-registry`，构建后位于服务端包的 `optional-plugins/block-registry/`。复制到活动 plugins 目录并重启，OP 使用 `/registrydemo` 领取新方块和物品。示例默认不启用，也不会自动修改世界。
+
+### 插件自定义弹窗 UI 与箱子密码锁（chest-lock）
+
+WebCraft 为服务端插件提供了通用客户端弹窗交互系统（Custom UI System），无需编写前端代码即可在游戏窗口弹出 Minecraft 风格的沉浸式表单对话框，并监听玩家的输入与提交。
+
+#### 1. 协议与 SDK API
+
+- **推送自定义弹窗**：`c.OpenCustomUI(worldID, playerID, ui)` 或 `c.OpenCustomUIFor(e, ui)`
+  - `ID`：弹窗唯一标识符（如 `chest_lock:set_password`）
+  - `Title`：标题文本（Minecraft 浮雕金字/黑字）
+  - `Content`：说明文字
+  - `Inputs`：表单输入组件列表（支持 `text`, `password`, `number`，可配置 `Label`, `Placeholder`, `DefaultValue`）
+  - `Buttons`：按钮列表（可配置 `submit`, `cancel` 类型与按钮文本）
+  - `Data`：插件上下文透传数据（回传时原样携带，方便插件还原状态）
+- **关闭自定义弹窗**：`c.CloseCustomUI(worldID, playerID, uiID)` 或 `c.CloseCustomUIFor(e, uiID)`
+- **修改告示牌文字**：`c.UpdateSign(worldID, x, y, z, lines)`（免物品与手持校验直接写入木牌内容并广播）
+- **代开容器窗口**：`c.OpenContainer(worldID, playerID, x, y, z)`（安全为指定玩家打开箱子窗口）
+- **客户端提交事件**：`player.custom_ui.submit`（`api.PlayerCustomUISubmit`）
+  - 包含 `uiId`, `button`, `values`（输入项键值对）, `customData`, `epoch`
+
+#### 2. 箱子密码锁官方插件（`chest-lock`）
+
+示例源码位于 `backend/examples/chest-lock/main.go`，配置文件位于 `plugins/chest-lock/plugin.json`：
+- **放置木牌贴箱子**：当玩家在箱子侧面放置木牌时，核心在 `block.placed` 事件中带入 `placedOnBlockKey = "Chest"` 及箱子坐标；插件拦截并弹出密码设置表单；
+- **设置密码并更新木牌**：玩家提交密码后，插件记录锁信息（保存至 `data/plugins/chest-lock/locks.json`），并调用 `c.UpdateSign` 将木牌覆写为 `[私有密码箱]`；
+- **开箱拦截与密码验证**：任何玩家右键开箱时，插件监听 `inventory.open.before` 并取消常规开箱，随后向玩家弹出密码输入表单；输入正确后通过 `c.OpenContainer` 为其打开箱子；
+- **防盗与解锁**：箱子和木牌受破坏保护（其他人无法破坏）；仅放置木牌的主人打掉木牌后，箱子方可解除密码保护。
 

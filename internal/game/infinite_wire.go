@@ -32,6 +32,7 @@ func (p *Peer) setOrigin() {
 }
 func (s *Server) peerSurvivalInfo(p *Peer) map[string]any {
 	m := s.survivalInfo(p.room)
+	m["blockProtocol"] = p.blockProtocol
 	if p.room.Infinite {
 		m["w"] = renderWidth
 		m["infinite"] = true
@@ -172,7 +173,11 @@ func (s *Server) streamInfinite(p *Peer) {
 		edits[c][chunkIndex(x, y, z)] = block
 	}
 	header := func() []byte {
-		out := []byte{13, p.room.dimIndex(), 0, 0}
+		kind := byte(13)
+		if p.blockProtocol == 2 {
+			kind = frameTerrain16
+		}
+		out := []byte{kind, p.room.dimIndex(), 0, 0}
 		return binary.LittleEndian.AppendUint32(out, p.epoch)
 	}
 	out := header()
@@ -194,7 +199,12 @@ func (s *Server) streamInfinite(p *Peer) {
 		return true
 	}
 	for _, v := range ready {
-		data := chunkWireTerrain(v.chunk, edits[v.coord])
+		var data []byte
+		if p.blockProtocol == 2 {
+			data = chunkWireTerrain16(v.chunk, edits[v.coord])
+		} else {
+			data = chunkWireTerrain(v.chunk, edits[v.coord])
+		}
 		if len(out)+12+len(data) > 60000 && !flush() {
 			return
 		}
@@ -229,21 +239,31 @@ func chunkWireTerrain(v *WorldChunk, edits map[int]int) []byte {
 	}
 	return encodeTerrain(base)
 }
+
+func chunkWireTerrain16(v *WorldChunk, edits map[int]int) []byte {
+	if len(edits) == 0 {
+		if v.Terrain16 == nil {
+			v.Terrain16 = encodeTerrain16(v.Base, nil)
+		}
+		return v.Terrain16
+	}
+	return encodeTerrain16(v.Base, edits)
+}
 func (s *Server) broadcastInfiniteDelta(r *Room, x, y, z, b int, quiet bool) {
 	for p := range r.Peers {
 		if !p.knows(x, z) {
 			continue
 		}
 		ci := p.localChunk(chunkCoord(x, z))
-		out := []byte{12, r.dimIndex(), 1, 0}
+		out := []byte{chunkFrame(p), r.dimIndex(), 1, 0}
 		out = binary.LittleEndian.AppendUint32(out, uint32(ci))
 		out = binary.LittleEndian.AppendUint16(out, 1)
-		out = binary.LittleEndian.AppendUint16(out, uint16(chunkIndex(x, y, z)))
+
 		flag := byte(0)
 		if quiet {
 			flag = 128
 		}
-		out = append(out, byte(b), flag)
+		out = appendChunkRecord(out, p, chunkIndex(x, y, z), b, flag)
 		p.enqueue(websocket.BinaryMessage, out)
 	}
 }

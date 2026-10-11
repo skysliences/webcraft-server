@@ -90,16 +90,16 @@ type Room struct {
 	// W is the world width in blocks (multiple of 16, <= 4096). Dim is
 	// "overworld", "nether" or "end"; non-overworld rooms are sub-rooms of
 	// parent and saved as <id>.<dim>.json.
-	Infinite  bool
-	LegacyW   int
-	Generator string
-	chunks    map[ChunkCoord]*WorldChunk
-	W         int
-	Dim       string
-	Ext       *RoomExt
-	parent    *Room
-	dims      map[string]*Room
-	extRT     *roomRuntime
+	Infinite   bool
+	LegacyW    int
+	Generator  string
+	chunks     map[ChunkCoord]*WorldChunk
+	W          int
+	Dim        string
+	Ext        *RoomExt
+	parent     *Room
+	dims       map[string]*Room
+	extRT      *roomRuntime
 	scoreboard *Scoreboard
 }
 type diskRoom struct {
@@ -225,7 +225,10 @@ func (s *Server) loadRooms() error {
 			r.Time = raw.Time
 		}
 		for _, v := range raw.Edits {
-			if v[0] >= 0 && v[0] < 1<<60 && v[1] >= 0 && v[1] < len(s.rules.Names) {
+			if v[1] >= 220 && !s.rules.validBlock(v[1]) {
+				return fmt.Errorf("world %s contains unregistered block %d; restore registry.json before loading; save was not modified", id, v[1])
+			}
+			if v[0] >= 0 && v[0] < 1<<60 && s.rules.validBlock(v[1]) {
 				r.Edits[uint64(v[0])] = v[1]
 			}
 		}

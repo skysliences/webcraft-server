@@ -13,6 +13,8 @@ import (
 )
 
 type Context struct {
+	blocks  []BlockDefinition
+	items   []ItemDefinition
 	Actions []Action
 	DataDir string
 	Config  json.RawMessage
@@ -91,6 +93,64 @@ func (c *Context) Heal(e *Event, amount float64) {
 	if e.Player != nil && e.World != nil {
 		c.Actions = append(c.Actions, Action{Type: "heal", WorldID: e.World.ID, PlayerID: e.Player.ID, Amount: amount})
 	}
+}
+
+// OpenCustomUI 向指定世界中的玩家推送自定义表单/弹窗界面
+func (c *Context) OpenCustomUI(worldID string, playerID uint16, ui CustomUIDefinition) {
+	c.Actions = append(c.Actions, Action{
+		Type:     "custom_ui",
+		WorldID:  worldID,
+		PlayerID: playerID,
+		CustomUI: &ui,
+	})
+}
+
+// OpenCustomUIFor 便捷方法：向事件触发者玩家推送自定义弹窗
+func (c *Context) OpenCustomUIFor(e *Event, ui CustomUIDefinition) {
+	if e != nil && e.World != nil && e.Player != nil {
+		c.OpenCustomUI(e.World.ID, e.Player.ID, ui)
+	}
+}
+
+// CloseCustomUI 关闭指定玩家当前的自定义界面
+func (c *Context) CloseCustomUI(worldID string, playerID uint16, uiID string) {
+	c.Actions = append(c.Actions, Action{
+		Type:     "close_custom_ui",
+		WorldID:  worldID,
+		PlayerID: playerID,
+		Reason:   uiID,
+	})
+}
+
+// CloseCustomUIFor 便捷方法：关闭事件触发者玩家的自定义界面
+func (c *Context) CloseCustomUIFor(e *Event, uiID string) {
+	if e != nil && e.World != nil && e.Player != nil {
+		c.CloseCustomUI(e.World.ID, e.Player.ID, uiID)
+	}
+}
+
+// UpdateSign 直接修改或覆写指定世界坐标的告示牌文本内容
+func (c *Context) UpdateSign(worldID string, x, y, z int, lines []string) {
+	c.Actions = append(c.Actions, Action{
+		Type:    "write_sign",
+		WorldID: worldID,
+		X:       float64(x),
+		Y:       float64(y),
+		Z:       float64(z),
+		Lines:   lines,
+	})
+}
+
+// OpenContainer 命令服务端为玩家打开指定坐标处的容器窗口
+func (c *Context) OpenContainer(worldID string, playerID uint16, x, y, z int) {
+	c.Actions = append(c.Actions, Action{
+		Type:     "open_container",
+		WorldID:  worldID,
+		PlayerID: playerID,
+		X:        float64(x),
+		Y:        float64(y),
+		Z:        float64(z),
+	})
 }
 
 type Handler func(*Context, *Event) error
@@ -175,6 +235,8 @@ func (p *Plugin) handle(req Request) (response Response) {
 		}
 		if err == nil {
 			response.Metadata = p.metadata()
+			response.Metadata.Blocks = ctx.blocks
+			response.Metadata.Items = ctx.items
 		}
 	case "event":
 		if req.Event == nil {

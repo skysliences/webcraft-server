@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -894,6 +895,19 @@ func (s *Server) reloadPlugins(actor string) error {
 	s.actions = nil
 	s.plugins.Close()
 	s.plugins = plugins.LoadFiltered(s.config.PluginDir, filepath.Join(s.config.DataDir, "plugins"), s.config.PluginTimeout, s.ops.Settings.DisabledPlugins)
+	before := s.registrySnapshot()
+	if err := s.registerPluginDefinitions(); err != nil {
+		s.emit(api.PluginsReloadFailed, nil, nil, map[string]any{"actor": actor, "reason": "registry_validation", "error": err.Error()})
+		return err
+	}
+	if !reflect.DeepEqual(before, s.registry) {
+		for _, r := range s.allRooms() {
+			for p := range r.Peers {
+				p.sys("插件注册表已更新，请重新进入服务器。")
+				p.close(4009)
+			}
+		}
+	}
 	if s.plugins.Failed() > 0 {
 		s.emit(api.PluginsReloadFailed, nil, nil, map[string]any{"actor": actor, "plugins": s.plugins.Status()})
 		return errors.New("部分插件加载失败，查看插件状态")
@@ -1012,7 +1026,7 @@ func (s *Server) backup(actor, reason string) (string, error) {
 		return "", err
 	}
 	z := zip.NewWriter(f)
-	for _, root := range []string{"rooms", "worlds", "accounts.json", "federation.json", "server.json", "world-server.json", "plugins"} {
+	for _, root := range []string{"rooms", "worlds", "accounts.json", "federation.json", "server.json", "world-server.json", "registry.json", "plugins"} {
 		err = filepath.WalkDir(filepath.Join(s.config.DataDir, root), func(path string, e os.DirEntry, err error) error {
 			if os.IsNotExist(err) {
 				return nil

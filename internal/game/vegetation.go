@@ -132,6 +132,7 @@ func (s *Server) populateVegetation(r *Room, c ChunkCoord, v *WorldChunk, genera
 		v.Base[chunkIndex(plant.X, plant.Y, plant.Z)] = byte(plant.Block)
 	}
 	v.Terrain = nil // A successful decoration commit changes the immutable base.
+	v.Terrain16 = nil
 	v.VegetationVersion = vegetationVersion
 	r.Dirty = true
 	s.emit(api.ChunkPopulated, r, nil, data)

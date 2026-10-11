@@ -57,6 +57,7 @@ type registration struct {
 	command api.Command
 }
 type Manager struct {
+	registry  []api.RegistryEntry
 	processes []*process
 	commands  map[string]registration
 	specs     map[string]api.EventSpec
@@ -184,7 +185,7 @@ func (m *Manager) register(p *process, metadata *api.Metadata) error {
 	if metadata == nil || metadata.APIVersion != api.APIVersion {
 		return errors.New("invalid API handshake")
 	}
-	if len(metadata.Subscriptions) > 128 || len(metadata.Commands) > 64 {
+	if len(metadata.Subscriptions) > 128 || len(metadata.Commands) > 64 || len(metadata.Blocks)+len(metadata.Items) > 4096 {
 		return errors.New("registration limit exceeded")
 	}
 	for i, sub := range metadata.Subscriptions {
@@ -222,6 +223,14 @@ func (m *Manager) register(p *process, metadata *api.Metadata) error {
 			names[name] = true
 		}
 		metadata.Commands[i] = command
+	}
+	for _, d := range metadata.Blocks {
+		copy := d
+		m.registry = append(m.registry, api.RegistryEntry{PluginID: p.status.ID, Block: &copy})
+	}
+	for _, d := range metadata.Items {
+		copy := d
+		m.registry = append(m.registry, api.RegistryEntry{PluginID: p.status.ID, Item: &copy})
 	}
 	p.status.Subscriptions = metadata.Subscriptions
 	p.status.Commands = metadata.Commands
@@ -527,4 +536,12 @@ func (w *logWriter) Write(b []byte) (int, error) {
 		w.pending = w.pending[i:]
 	}
 	return n, nil
+}
+
+// Registrations returns a detached initialization snapshot.
+func (m *Manager) Registrations() []api.RegistryEntry {
+	raw, _ := json.Marshal(m.registry)
+	var v []api.RegistryEntry
+	json.Unmarshal(raw, &v)
+	return v
 }

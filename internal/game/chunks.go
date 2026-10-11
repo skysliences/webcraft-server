@@ -24,6 +24,7 @@ type WorldChunk struct {
 	// Terrain is the immutable, vegetation-decorated base encoded for API v1.
 	// Live edits are applied separately; it is never written to a save file.
 	Terrain           []byte
+	Terrain16         []byte // Protocol 2 cache; also immutable and never saved.
 	Used              uint64
 	Saved             bool
 	MetaHash          [32]byte
@@ -261,12 +262,12 @@ func (s *Server) validateChunk(d *diskChunk) error {
 		return fmt.Errorf("invalid terrain length")
 	}
 	for _, b := range d.Base {
-		if int(b) >= len(s.rules.Names) {
+		if !s.rules.validBlock(int(b)) {
 			return fmt.Errorf("invalid terrain block")
 		}
 	}
 	for i, b := range d.Edits {
-		if i < 0 || i >= chunkVolume || b < 0 || b >= len(s.rules.Names) {
+		if i < 0 || i >= chunkVolume || !s.rules.validBlock(b) {
 			return fmt.Errorf("invalid edit")
 		}
 	}

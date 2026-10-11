@@ -107,7 +107,17 @@ func limitText(str string, n int) string {
 }
 func (s *Server) blockData(r *Room, key uint64, b int) map[string]any {
 	x, y, z := coords(key)
-	return map[string]any{"x": x, "y": y, "z": z, "oldBlock": s.block(r, x, y, z), "block": b}
+	return map[string]any{"x": x, "y": y, "z": z, "oldBlock": s.block(r, x, y, z), "block": b, "blockKey": s.registryBlockKey(b), "oldBlockKey": s.registryBlockKey(s.block(r, x, y, z)), "reason": "block_change", "actor": map[string]any{"kind": "server", "plugin": s.pluginSource}, "target": map[string]any{"kind": "block", "x": x, "y": y, "z": z}}
+}
+func (s *Server) playerBlockData(p *Peer, key uint64, b int) map[string]any {
+	data := s.blockData(p.room, key, b)
+	data["actor"], data["source"] = p.sid, "player"
+	data["reason"] = "place"
+	if b == 0 {
+		data["reason"] = "break"
+	}
+	data["stack"] = itemSnapshot(s.heldItem(p))
+	return data
 }
 func (s *Server) allowBlock(p *Peer, key uint64, b int, context ...map[string]any) bool {
 	if b != blkExplosiveTNT && s.primedTNT(p.room, key) {
@@ -117,7 +127,7 @@ func (s *Server) allowBlock(p *Peer, key uint64, b int, context ...map[string]an
 	if b == 0 {
 		name = api.BlockBreaking
 	}
-	data := s.blockData(p.room, key, b)
+	data := s.playerBlockData(p, key, b)
 	component := s.redstoneBlockChangeData(p.room, p, key, b, "block_change")
 	if component != nil {
 		data = component
@@ -231,6 +241,12 @@ func (s *Server) applyAction(a api.Action) {
 			break
 		}
 	}
+	if a.BlockKey != "" {
+		a.Block = s.rules.byName[a.BlockKey]
+		if !s.rules.validBlock(a.Block) || a.Block == 0 {
+			return
+		}
+	}
 	switch a.Type {
 	case "dispense_block":
 		if !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 1, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) || len(a.ContainerExpected) != 9 {
@@ -256,7 +272,19 @@ func (s *Server) applyAction(a api.Action) {
 			return
 		}
 		s.dispenseMechanic(r, k, state)
-	case "use_mechanic", "write_sign", "use_vehicle":
+	case "write_sign":
+		if a.Expected == nil {
+			_ = s.writeSignDirect(r, int(a.X), int(a.Y), int(a.Z), a.Lines)
+			return
+		}
+		if p == nil || p.state == nil || p.state.Inv == nil || p.state.Inv.Selected != a.Slot || !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 0, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) {
+			return
+		}
+		m := Message{T: "place", X: int(a.X), Y: int(a.Y), Z: int(a.Z), F: a.Face}
+		if err := s.writeSign(p, m.X, m.Y, m.Z, a.Lines, a.Expected, true); err != nil {
+			p.sys(err.Error())
+		}
+	case "use_mechanic", "use_vehicle":
 		if p == nil || p.state == nil || p.state.Inv == nil || p.state.Inv.Selected != a.Slot || !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 0, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) {
 			return
 		}
@@ -267,10 +295,35 @@ func (s *Server) applyAction(a api.Action) {
 		if a.Type == "use_vehicle" {
 			s.useVehicle(p, m, a.Expected.Clone(), true)
 		}
-		if a.Type == "write_sign" {
-			if err := s.writeSign(p, m.X, m.Y, m.Z, a.Lines, a.Expected, true); err != nil {
-				p.sys(err.Error())
+	case "custom_ui":
+		if p != nil && a.CustomUI != nil {
+			p.json(map[string]any{
+				"t":       "custom_ui",
+				"id":      a.CustomUI.ID,
+				"title":   a.CustomUI.Title,
+				"content": a.CustomUI.Content,
+				"style":   a.CustomUI.Style,
+				"inputs":  a.CustomUI.Inputs,
+				"buttons": a.CustomUI.Buttons,
+				"data":    a.CustomUI.Data,
+			})
+		}
+	case "close_custom_ui":
+		if p != nil {
+			p.json(map[string]any{
+				"t":  "close_custom_ui",
+				"id": a.Reason,
+			})
+		}
+	case "open_container":
+		if p != nil && number(a.X, r.minCoord(), r.maxCoord()) && number(a.Y, 0, 127) && number(a.Z, r.minCoord(), r.maxCoord()) {
+			k := blockKey(int(a.X), int(a.Y), int(a.Z))
+			b := s.block(r, int(a.X), int(a.Y), int(a.Z))
+			kind := "chest"
+			if b == s.id("Ender Chest") {
+				kind = "ender"
 			}
+			s.openWindow(p, k, kind, 0)
 		}
 	case "interact_vehicle":
 		if p != nil {
@@ -395,7 +448,7 @@ func (s *Server) applyAction(a api.Action) {
 			s.damageMobSource(r, nil, m, a.Amount, a.Reason, &api.DamageContext{Cause: "plugin"})
 		}
 	case "set_block":
-		if !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 1, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) || a.Block < 0 || a.Block >= len(s.rules.Names) || r.Mode == "creative" && !creativeBlock(a.Block) {
+		if !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 1, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) || !s.rules.validBlock(a.Block) || r.Mode == "creative" && !s.creativeBlock(a.Block) {
 			return
 		}
 		key := blockKey(int(a.X), int(a.Y), int(a.Z))
@@ -470,7 +523,7 @@ func (s *Server) applyAction(a api.Action) {
 		}
 		var edits [][4]int
 		for _, b := range a.Blocks {
-			if !r.inside(b.X, b.Z) || b.Y < 1 || b.Y >= 127 || b.Block < 0 || b.Block >= len(s.rules.Names) || (r.Mode == "creative" && !creativeBlock(b.Block)) {
+			if !r.inside(b.X, b.Z) || b.Y < 1 || b.Y >= 127 || !s.rules.validBlock(b.Block) || (r.Mode == "creative" && !s.creativeBlock(b.Block)) {
 				continue
 			}
 			key := blockKey(b.X, b.Y, b.Z)

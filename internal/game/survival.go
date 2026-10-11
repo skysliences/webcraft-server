@@ -49,17 +49,17 @@ func (s *Server) stream(p *Peer) {
 				continue
 			}
 			idx := ((z&15)*16+(x&15))*128 + y
-			grouped[ci] = append(binary.LittleEndian.AppendUint16(grouped[ci], uint16(idx)), byte(b), 128)
+			grouped[ci] = appendChunkRecord(grouped[ci], p, idx, b, 128)
 		}
 		dim := p.room.dimIndex()
-		out := []byte{12, dim, 0, 0}
+		out := []byte{chunkFrame(p), dim, 0, 0}
 		count := 0
 		flush := func() {
 			if count > 0 {
 				binary.LittleEndian.PutUint16(out[2:], uint16(count))
 				p.enqueue(websocket.BinaryMessage, out)
 			}
-			out = []byte{12, dim, 0, 0}
+			out = []byte{chunkFrame(p), dim, 0, 0}
 			count = 0
 		}
 		for _, ci := range needed {
@@ -68,7 +68,7 @@ func (s *Server) stream(p *Peer) {
 				flush()
 			}
 			out = binary.LittleEndian.AppendUint32(out, uint32(ci))
-			out = binary.LittleEndian.AppendUint16(out, uint16(len(d)/4))
+			out = binary.LittleEndian.AppendUint16(out, uint16(len(d)/chunkRecordSize(p)))
 			out = append(out, d...)
 			count++
 			p.known[ci] = true
@@ -96,10 +96,10 @@ func (s *Server) reachable(p *Peer, m Message) bool {
 		return false
 	}
 	cfg := s.anticheatConfig()
-	if !cfg.Enabled {
-		return true
-	}
 	reach := cfg.ReachDistance
+	if !cfg.Enabled {
+		reach = 64.0
+	}
 	st := p.state
 	dx, dy, dz := float64(m.X)+0.5-st.X, float64(m.Y)+0.5-st.Y-1.62, float64(m.Z)+0.5-st.Z
 	return dx*dx+dy*dy+dz*dz <= reach*reach

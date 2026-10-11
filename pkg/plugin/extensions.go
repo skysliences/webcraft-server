@@ -159,11 +159,15 @@ const (
 
 	// 计分板自定义渲染
 	ScoreboardRendering = "scoreboard.render"
+
+	// 插件自定义界面交互
+	PlayerCustomUISubmit = "player.custom_ui.submit"
 )
 
 func extensionEvents() []EventSpec {
 	out := []EventSpec{}
 	names := []string{
+		PlayerCustomUISubmit,
 		MechanicChanging, MechanicChanged, RailChanging, RailChanged,
 		BlockDispensing, BlockDispensed, SignChanging, SignChanged,
 		BlockIgniting, BlockIgnited, PortalCreating, PortalCreated,

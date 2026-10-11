@@ -30,9 +30,11 @@ type Command struct {
 	Permission  string   `json:"permission,omitempty"`
 }
 type Metadata struct {
-	APIVersion    int            `json:"apiVersion"`
-	Subscriptions []Subscription `json:"subscriptions"`
-	Commands      []Command      `json:"commands"`
+	Blocks        []BlockDefinition `json:"blocks,omitempty"`
+	Items         []ItemDefinition  `json:"items,omitempty"`
+	APIVersion    int               `json:"apiVersion"`
+	Subscriptions []Subscription    `json:"subscriptions"`
+	Commands      []Command         `json:"commands"`
 }
 type Player struct {
 	Operator    bool                      `json:"operator,omitempty"`
@@ -112,6 +114,7 @@ func (e *Event) Number(key string) float64 {
 }
 
 type Action struct {
+	BlockKey          string        `json:"blockKey,omitempty"`
 	AccountID         string        `json:"accountId,omitempty"`
 	Type              string        `json:"type"`
 	WorldID           string        `json:"worldId,omitempty"`
@@ -144,8 +147,37 @@ type Action struct {
 	Amplifier         int           `json:"amplifier,omitempty"`
 	Rain              bool          `json:"rain,omitempty"`
 	Thunder           bool          `json:"thunder,omitempty"`
-	Lines             []string      `json:"lines,omitempty"`
-	Blocks            []BlockChange `json:"blocks,omitempty"`
+	Lines             []string            `json:"lines,omitempty"`
+	Blocks            []BlockChange       `json:"blocks,omitempty"`
+	CustomUI          *CustomUIDefinition `json:"customUi,omitempty"`
+}
+
+// CustomUIDefinition 插件向客户端推送的自定义界面表单与弹窗定义
+type CustomUIDefinition struct {
+	ID      string           `json:"id"`                // 界面唯一标识
+	Title   string           `json:"title"`             // 窗口标题
+	Content string           `json:"content,omitempty"` // 正文提示描述
+	Style   string           `json:"style,omitempty"`   // 风格: "wood" (原木风格), "stone", "dark"
+	Inputs  []CustomUIInput  `json:"inputs,omitempty"`  // 输入组件列表
+	Buttons []CustomUIButton `json:"buttons,omitempty"` // 按钮列表
+	Data    map[string]any   `json:"data,omitempty"`    // 插件私有上下文数据
+}
+
+// CustomUIInput 界面表单输入项
+type CustomUIInput struct {
+	ID          string `json:"id"`                    // 字段 key
+	Type        string `json:"type,omitempty"`        // "text", "password", "number"
+	Label       string `json:"label,omitempty"`       // 标签名称
+	Placeholder string `json:"placeholder,omitempty"` // 占位提示
+	Default     string `json:"default,omitempty"`     // 默认值
+	MaxLength   int    `json:"maxLength,omitempty"`   // 最大字符长度
+}
+
+// CustomUIButton 界面交互操作按钮
+type CustomUIButton struct {
+	ID   string `json:"id"`             // 按钮 ID
+	Text string `json:"text"`           // 按钮显示文本
+	Type string `json:"type,omitempty"` // "submit" (主要动作), "cancel" (取消关闭)
 }
 type BlockChange struct {
 	X     int `json:"x"`
@@ -310,13 +342,14 @@ func Events() []EventSpec {
 	for _, name := range names {
 		before := len(name) > 7 && name[len(name)-7:] == ".before"
 		spec := EventSpec{Name: name, Cancellable: before && name != WorldSaving, Mutable: mutable[name]}
-		if name == BlockPlacing || name == BlockPlaced || name == BlockChanged || name == InventoryChanging || name == InventoryChanged {
-			spec.Fields = []string{"x", "y", "z", "oldBlock", "block", "reason", "actor", "source", "target", "item", "count", "consumed", "slot", "face", "stack", "before", "after"}
+		if name == BlockBreaking || name == BlockBroken || name == BlockPlacing || name == BlockPlaced || name == BlockChanged || name == InventoryChanging || name == InventoryChanged {
+			spec.Fields = []string{"x", "y", "z", "oldBlock", "block", "blockKey", "oldBlockKey", "reason", "actor", "source", "target", "item", "count", "consumed", "slot", "face", "stack", "before", "after"}
 		}
 		out = append(out, spec)
 	}
 	out = append(out, identityEvents()...)
 	out = append(out, EventSpec{Name: ServerWorldSelecting, Cancellable: true}, EventSpec{Name: ServerWorldSelected})
+	out = append(out, registryEvents()...)
 	return append(out, extensionEvents()...)
 }
 

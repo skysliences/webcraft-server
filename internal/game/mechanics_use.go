@@ -143,6 +143,11 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 	data["item"] = held.ID
 	data["count"] = count
 	data["face"] = face
+	data["placedOnX"] = m.X
+	data["placedOnY"] = m.Y
+	data["placedOnZ"] = m.Z
+	data["placedOnBlock"] = target
+	data["placedOnBlockKey"] = s.registryBlockKey(target)
 	if !s.allowed(api.BlockPlacing, r, p, data) || !s.mechanicBlockBefore(r, p, data) || count > 0 && !s.allowed(api.InventoryChanging, r, p, data) {
 		return true
 	}
@@ -384,6 +389,22 @@ func (s *Server) writeSign(p *Peer, x, y, z int, lines []string, expected *api.I
 	s.emit(api.MechanicChanged, r, p, data)
 	return nil
 }
+
+func (s *Server) writeSignDirect(r *Room, x, y, z int, lines []string) error {
+	k := blockKey(x, y, z)
+	if s.block(r, x, y, z) != blkSign {
+		return fmt.Errorf("target is not a sign")
+	}
+	s.trackMechanicBlock(r, k, blkSign)
+	next := mechanicSnapshot(r, k)
+	for i := 0; i < len(next.Lines) && i < len(lines); i++ {
+		next.Lines[i] = lines[i]
+	}
+	storeMechanic(r, k, next)
+	s.broadcastMechanic(r, k)
+	return nil
+}
+
 func init() {
 	onPlace(1, func(s *Server, p *Peer, m Message, target int) bool { return s.handleMechanicUse(p, m, nil, false) })
 	onMessage("wopen", func(s *Server, p *Peer, m Message) bool {
@@ -397,6 +418,16 @@ func init() {
 		if err := s.writeSign(p, m.X, m.Y, m.Z, m.Lines, nil, false); err != nil {
 			p.sys(err.Error())
 		}
+		return true
+	})
+	onMessage("custom_ui_response", func(s *Server, p *Peer, m Message) bool {
+		data := map[string]any{
+			"uiId":   m.UIID,
+			"button": m.Button,
+			"values": m.Values,
+			"data":   m.CustomData,
+		}
+		s.emit(api.PlayerCustomUISubmit, p.room, p, data)
 		return true
 	})
 	onRoomTick(func(s *Server, r *Room) { s.tickMechanics(r) })

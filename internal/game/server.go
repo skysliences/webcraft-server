@@ -43,6 +43,8 @@ type Config struct {
 	Anticheat             AnticheatConfig
 }
 type Server struct {
+	coreRules            *Rules
+	registry             api.RegistrySnapshot
 	identity             *identityClient
 	identityDone         chan struct{}
 	pendingVillageSpawns []villageSpawn
@@ -99,8 +101,13 @@ func New(config Config) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{config: config, rooms: map[string]*Room{}, engine: engine, rules: rules, nextID: 1, rng: rand.New(rand.NewSource(time.Now().UnixNano())), started: time.Now(), stop: make(chan struct{}), stopRequested: make(chan struct{}, 1), done: make(chan struct{})}
+	s.coreRules = rules
 	s.initAnticheat()
 	engine.server = s
+	if err = s.loadRegistry(); err != nil {
+		engine.runtime.Close(context.Background())
+		return nil, err
+	}
 	s.unlockData = unlock
 	if err = s.loadRooms(); err != nil {
 		engine.runtime.Close(context.Background())
@@ -137,6 +144,11 @@ func New(config Config) (*Server, error) {
 		return nil, err
 	}
 	s.plugins = plugins.LoadFiltered(config.PluginDir, filepath.Join(config.DataDir, "plugins"), config.PluginTimeout, s.ops.Settings.DisabledPlugins)
+	if err = s.registerPluginDefinitions(); err != nil {
+		s.plugins.Close()
+		engine.runtime.Close(context.Background())
+		return nil, err
+	}
 	if config.SingleWorld {
 		if err = s.commitWorldBinding("server_start", "server"); err != nil {
 			s.actions = nil
@@ -256,6 +268,11 @@ func (s *Server) Handler() http.Handler {
 			status = 503
 		}
 		writeJSON(w, status, map[string]any{"status": map[bool]string{true: "ok", false: "degraded"}[failed == 0 && pluginFailures == 0], "service": "mcraft-go", "worlds": len(s.rooms), "online": s.online(), "pendingSaves": pending, "failedSaves": failed, "uptime": int(time.Since(s.started).Seconds()), "failedPlugins": pluginFailures, "plugins": len(s.plugins.Status())})
+	})
+	mux.HandleFunc("GET /api/registry", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		writeJSON(w, 200, s.registrySnapshot())
 	})
 	mux.HandleFunc("GET /api/plugins", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -562,6 +579,7 @@ type packet struct {
 	body []byte
 }
 type Peer struct {
+	blockProtocol     int
 	inventoryRevision uint64
 	inventoryPlaceQ   int
 	inventorySelQ     int
@@ -605,6 +623,7 @@ type digState struct {
 	At                   time.Time
 }
 type Message struct {
+	BlockProtocol  int             `json:"blockProtocol,omitempty"`
 	Preview        []BlockPosition `json:"preview,omitempty"`
 	PlacementStack *Stack          `json:"-"`
 	Forward        float64         `json:"forward"`
@@ -624,6 +643,10 @@ type Message struct {
 	ID             uint16          `json:"id"`
 	Token          string          `json:"token"`
 	Confirm        bool            `json:"confirm"`
+	UIID           string          `json:"uiId,omitempty"`
+	Button         string          `json:"button,omitempty"`
+	Values         map[string]any  `json:"values,omitempty"`
+	CustomData     map[string]any  `json:"data,omitempty"`
 	Hotbar         []int           `json:"hotbar"`
 	Slot           int             `json:"slot"`
 	I              int             `json:"i"`
@@ -832,6 +855,12 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 		p.close(4009)
 		return
 	}
+	p.blockProtocol = m.BlockProtocol
+	if len(s.registry.Entries) > 0 && p.blockProtocol != 2 {
+		p.sys("服务器使用扩展方块，请刷新网页客户端后重新连接。")
+		p.close(4009)
+		return
+	}
 	user := s.accounts.session(p.sessionHash)
 	if user == nil || user.Name == "" {
 		p.json(map[string]string{"t": "authrequired"})
@@ -899,6 +928,12 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 		}
 	}
 	if !s.allowed(api.PlayerJoining, r, p, map[string]any{"reason": "server_connect", "actor": p.sid, "target": r.root().ID}) {
+		p.close(4009)
+		p.room = nil
+		return
+	}
+	registryData := map[string]any{"reason": "player_join", "actor": map[string]any{"kind": "player", "id": p.sid}, "target": map[string]any{"kind": "client", "id": p.id}, "registryVersion": 1}
+	if !s.allowed(api.RegistrySyncing, r, p, registryData) {
 		p.close(4009)
 		p.room = nil
 		return
@@ -975,7 +1010,10 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 		s.sanitizeInventory(state.Inv)
 		welcome["sv"] = s.peerSurvivalInfo(p)
 	}
+	welcome["registry"] = s.registrySnapshot()
+	welcome["blockProtocol"] = p.blockProtocol
 	p.json(welcome)
+	s.emit(api.RegistrySynced, r, p, registryData)
 	if r.usesSurvival() {
 		if r.Infinite {
 			// Send the player's footing first; remaining visibility is streamed
@@ -1029,13 +1067,21 @@ func (s *Server) disconnect(p *Peer) {
 	p.room = nil
 }
 func (s *Server) syncCreative(p *Peer, edits map[uint64]int) {
-	data := []byte{3}
+	kind := byte(3)
+	if p.blockProtocol == 2 {
+		kind = frameSync16
+	}
+	data := []byte{kind}
 	for key, b := range edits {
 		data = binary.LittleEndian.AppendUint32(data, toWireKey(key))
-		data = append(data, byte(b))
+		if p.blockProtocol == 2 {
+			data = binary.LittleEndian.AppendUint16(data, uint16(b))
+		} else {
+			data = append(data, byte(b))
+		}
 		if len(data) > 60000 {
 			p.enqueue(websocket.BinaryMessage, data)
-			data = []byte{3}
+			data = []byte{kind}
 		}
 	}
 	if len(data) > 1 {
@@ -1138,10 +1184,13 @@ func (s *Server) binary(p *Peer, data []byte) {
 			}
 			s.pickupNearPlayer(p.room, p)
 		}
-	} else if len(data) == 6 && data[0] == 2 && p.room.Mode == "creative" && !p.room.Infinite {
+	} else if (len(data) == 6 && data[0] == 2 || len(data) == 7 && data[0] == frameEdit16 && p.blockProtocol == 2) && p.room.Mode == "creative" && !p.room.Infinite {
 		wire := binary.LittleEndian.Uint32(data[1:])
 		b := int(data[5])
-		if wire >= 1<<27 || wire&127 == 0 || !creativeBlock(b) {
+		if data[0] == frameEdit16 {
+			b = int(binary.LittleEndian.Uint16(data[5:]))
+		}
+		if wire >= 1<<27 || wire&127 == 0 || !s.creativeBlock(b) {
 			return
 		}
 		key := fromWireKey(wire)
@@ -1150,8 +1199,7 @@ func (s *Server) binary(p *Peer, data []byte) {
 			if v, ok := p.room.Edits[key]; ok {
 				old = v
 			}
-			out := binary.LittleEndian.AppendUint32([]byte{4}, wire)
-			p.enqueue(websocket.BinaryMessage, append(out, byte(old)))
+			s.denyBlock(p, wire, old)
 			return
 		}
 		if !s.torchSupported(p.room, key, b) || !s.allowBlock(p, key, b) {
@@ -1159,8 +1207,7 @@ func (s *Server) binary(p *Peer, data []byte) {
 			if v, ok := p.room.Edits[key]; ok {
 				old = v
 			}
-			out := binary.LittleEndian.AppendUint32([]byte{4}, wire)
-			p.enqueue(websocket.BinaryMessage, append(out, byte(old)))
+			s.denyBlock(p, wire, old)
 			return
 		}
 		changes, err := s.prepareTorchChanges(p.room, p, key, b, 0)
@@ -1168,8 +1215,7 @@ func (s *Server) binary(p *Peer, data []byte) {
 			p.sys(err.Error())
 			x, y, z := coords(key)
 			old := s.block(p.room, x, y, z)
-			out := binary.LittleEndian.AppendUint32([]byte{4}, wire)
-			p.enqueue(websocket.BinaryMessage, append(out, byte(old)))
+			s.denyBlock(p, wire, old)
 			return
 		}
 		s.edit(p, key, b)
@@ -1334,7 +1380,7 @@ func (s *Server) message(p *Peer, m Message) {
 	case "inv":
 		if r.Mode == "creative" && len(m.Hotbar) == 9 && m.Slot >= 0 && m.Slot <= 8 {
 			for _, b := range m.Hotbar {
-				if !creativeItem(b) {
+				if !s.creativeItem(b) {
 					return
 				}
 			}
@@ -1376,7 +1422,7 @@ func (s *Server) edit(p *Peer, key uint64, b int) {
 	s.editReason(p, key, b, "")
 }
 func (s *Server) editReason(p *Peer, key uint64, b int, reason string) {
-	data := s.blockData(p.room, key, b)
+	data := s.playerBlockData(p, key, b)
 	if component := s.redstoneBlockChangeData(p.room, p, key, b, reason); component != nil {
 		data = component
 	}
@@ -1423,13 +1469,9 @@ func (s *Server) commitPlayerBlock(p *Peer, key uint64, b int, data map[string]a
 		x, y, z := coords(key)
 		s.queueNeighbors(r, x, y, z)
 	} else {
-		out := []byte{5, 0, 0, 1, 0}
-		out = binary.LittleEndian.AppendUint16(out, p.id)
-		out = binary.LittleEndian.AppendUint32(out, toWireKey(key))
-		out = append(out, byte(b))
 		for other := range r.Peers {
 			if other != p {
-				other.enqueue(websocket.BinaryMessage, out)
+				sendPlayerBlock(other, p.id, key, b)
 			}
 		}
 	}

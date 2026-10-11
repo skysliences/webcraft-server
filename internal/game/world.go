@@ -68,8 +68,8 @@ type RoomExt struct {
 	// Per-block data: piston stickiness, hopper facing, redstone power...
 	Blocks map[uint64]*BlockData `json:"blocks,omitempty"`
 	// Scheduled ticks (crop growth handled by random ticks instead).
-	EndPortalLit    bool                  `json:"endLit,omitempty"`
-	RandomTickSpeed *int                  `json:"randomTickSpeed,omitempty"`
+	EndPortalLit    bool `json:"endLit,omitempty"`
+	RandomTickSpeed *int `json:"randomTickSpeed,omitempty"`
 }
 
 // BlockData is extra state stored for a block position.
@@ -430,7 +430,7 @@ func (s *Server) setBlocksValidated(r *Room, changes [][4]int, flags int, reason
 	seen := map[uint64]bool{}
 	for _, at := range changes {
 		x, y, z, b := at[0], at[1], at[2], at[3]
-		if !r.inside(x, z) || y < 0 || y >= 128 || b < 0 || b >= len(s.rules.Names) {
+		if !r.inside(x, z) || y < 0 || y >= 128 || !s.rules.validBlock(b) {
 			return false
 		}
 		key := blockKey(x, y, z)
@@ -579,10 +579,8 @@ func (s *Server) setBlocksValidated(r *Room, changes [][4]int, flags int, reason
 		if r.usesSurvival() {
 			s.broadcastChunkFlags(r, c.key, b, flags&setQuiet != 0)
 		} else {
-			out := binary.LittleEndian.AppendUint32([]byte{3}, toWireKey(c.key))
-			out = append(out, byte(b))
 			for p := range r.Peers {
-				p.enqueue(websocket.BinaryMessage, out)
+				sendBlockSync(p, c.key, b)
 			}
 		}
 		if c.spill {
@@ -627,18 +625,15 @@ func (s *Server) broadcastChunkFlags(r *Room, key uint64, b int, quiet bool) {
 	}
 	ci := z/16*r.cn() + x/16
 	idx := ((z&15)*16+(x&15))*128 + y
-	out := []byte{12, r.dimIndex(), 1, 0}
-	out = binary.LittleEndian.AppendUint32(out, uint32(ci))
-	out = binary.LittleEndian.AppendUint16(out, 1)
-	out = binary.LittleEndian.AppendUint16(out, uint16(idx))
 	flag := byte(0)
 	if quiet {
 		flag = 128
 	}
-	out = append(out, byte(b), flag)
 	for p := range r.Peers {
 		if p.known[ci] {
-			p.enqueue(websocket.BinaryMessage, out)
+			out := binary.LittleEndian.AppendUint32([]byte{chunkFrame(p), r.dimIndex(), 1, 0}, uint32(ci))
+			out = binary.LittleEndian.AppendUint16(out, 1)
+			p.enqueue(websocket.BinaryMessage, appendChunkRecord(out, p, idx, b, flag))
 		}
 	}
 }
@@ -783,13 +778,13 @@ func (s *Server) extTick(r *Room) {
 
 // nameOf returns the base block name.
 func (s *Server) nameOf(b int) string {
-	if b < 0 || b >= len(s.rules.Names) {
+	if !s.rules.validBlock(b) {
 		return ""
 	}
 	return baseName(s.rules.Names[b])
 }
 func (s *Server) fullName(b int) string {
-	if b < 0 || b >= len(s.rules.Names) {
+	if !s.rules.validBlock(b) {
 		return ""
 	}
 	return s.rules.Names[b]

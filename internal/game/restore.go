@@ -19,7 +19,7 @@ func allowedBackupPath(name string) bool {
 		return false
 	}
 	root := strings.Split(name, "/")[0]
-	return root == "rooms" || root == "worlds" || root == "plugins" || name == "accounts.json" || name == "federation.json" || name == "server.json" || name == "world-server.json"
+	return root == "rooms" || root == "worlds" || root == "plugins" || name == "accounts.json" || name == "federation.json" || name == "server.json" || name == "world-server.json" || name == "registry.json"
 }
 func extractBackup(file, stage string) error {
 	archive, err := zip.OpenReader(file)
@@ -148,7 +148,8 @@ func (s *Server) restoreBackup(name, actor string) error {
 	}
 	oldRooms, oldAccounts, oldSettings := s.rooms, s.accounts, s.ops.Settings
 	oldBinding := s.worldBinding
-	roots := []string{"rooms", "worlds", "accounts.json", "federation.json", "server.json", "world-server.json", "plugins"}
+	oldRegistry, oldRules := s.registry, s.rules
+	roots := []string{"rooms", "worlds", "accounts.json", "federation.json", "server.json", "world-server.json", "registry.json", "plugins"}
 	moved := map[string]bool{}
 	installed := map[string]bool{}
 	rollbackFiles := func() {
@@ -163,6 +164,7 @@ func (s *Server) restoreBackup(name, actor string) error {
 		}
 		s.rooms, s.accounts, s.ops.Settings = oldRooms, oldAccounts, oldSettings
 		s.worldBinding = oldBinding
+		s.registry, s.rules = oldRegistry, oldRules
 	}
 	for _, root := range roots {
 		dst := filepath.Join(s.config.DataDir, root)
@@ -191,7 +193,10 @@ func (s *Server) restoreBackup(name, actor string) error {
 	} else {
 		s.rooms = map[string]*Room{}
 		s.engine.current = ""
-		err = s.loadRooms()
+		err = s.loadRegistry()
+		if err == nil {
+			err = s.loadRooms()
+		}
 		if err == nil {
 			if s.identity != nil {
 				s.accounts, err = newFederatedAccounts(s.config.DataDir, s.identity)

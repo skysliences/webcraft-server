@@ -57,13 +57,14 @@ type Recipe struct {
 	Ingredients [][]int `json:"ingredients"`
 }
 type Rules struct {
-	Kinds   []int                   `json:"kinds"`
-	Names   []string                `json:"names"`
-	Items   []Item                  `json:"items"`
-	Recipes []Recipe                `json:"recipes"`
-	Mining  []map[string]MiningRule `json:"mining"`
-	byID    map[int]Item
-	byName  map[string]int
+	Kinds      []int                   `json:"kinds"`
+	Names      []string                `json:"names"`
+	Items      []Item                  `json:"items"`
+	Recipes    []Recipe                `json:"recipes"`
+	Mining     []map[string]MiningRule `json:"mining"`
+	byID       map[int]Item
+	byName     map[string]int
+	itemModels map[int]int // Custom tool IDs reuse the template's mining rules.
 }
 
 func loadRules() (*Rules, error) {
@@ -91,6 +92,9 @@ func (r *Rules) max(id int) int {
 func (r *Rules) mine(block, held int) MiningRule {
 	if block < 0 || block >= len(r.Mining) {
 		return MiningRule{Ticks: -1}
+	}
+	if model, ok := r.itemModels[held]; ok {
+		held = model
 	}
 	m, ok := r.Mining[block][strconv.Itoa(held)]
 	if !ok {

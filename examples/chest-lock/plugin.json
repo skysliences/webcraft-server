@@ -1,0 +1,13 @@
+{
+  "id": "chest-lock",
+  "name": "Chest Lock Password Protection",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "chest-lock",
+  "enabled": true,
+  "description": "木牌箱子密码锁插件，在箱子上贴木牌弹窗设置密码，开箱需输密码解锁，支持自定义弹窗UI",
+  "config": {
+    "signTitle": "[私有密码箱]",
+    "allowOpBypass": true
+  }
+}
