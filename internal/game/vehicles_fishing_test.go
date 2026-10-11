@@ -229,7 +229,7 @@ func TestTransportLegacyMigrationBackupAndInvalidMetadata(t *testing.T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := "fedcba9876543210"
-	raw := diskRoom{Version: saveVersionCurrent, Mode: "survival", W: 64, Name: "legacy", Mobs: []*Mob{{ID: rtEntNamespace | 7, Type: "minecart", X: 10.5, Y: 60.1, Z: 10.5, Health: 13}, {ID: rtEntNamespace | 8, Type: "boat", X: 12.5, Y: 60.8, Z: 10.5, Health: 30}, {ID: rtEntNamespace | 9, Type: "fishing_bobber", X: 12, Y: 61, Z: 10, Health: 1}}}
+	raw := diskRoom{Version: 8, Mode: "survival", W: 64, Name: "legacy", Mobs: []*Mob{{ID: rtEntNamespace | 7, Type: "minecart", X: 10.5, Y: 60.1, Z: 10.5, Health: 13}, {ID: rtEntNamespace | 8, Type: "boat", X: 12.5, Y: 60.8, Z: 10.5, Health: 30}, {ID: rtEntNamespace | 9, Type: "fishing_bobber", X: 12, Y: 61, Z: 10, Health: 1}}}
 	encoded, _ := json.Marshal(raw)
 	if err := os.WriteFile(s.roomFile(id), encoded, 0600); err != nil {
 		t.Fatal(err)

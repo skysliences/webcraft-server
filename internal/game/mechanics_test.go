@@ -213,6 +213,7 @@ func TestMechanicDropperBucketsUtilitiesAndMetadataRestore(t *testing.T) {
 	a := customStack(1, 2)
 	r.Containers[k].Slots[0] = copyStack(a)
 	dest := blockKey(13, 60, 10)
+	r.Edits[dest] = 140
 	r.Containers[dest] = &Container{Kind: "chest", Slots: make(Stacks, 27)}
 	b := customStack(1, 2)
 	b.Meta.Lore = []string{"different"}

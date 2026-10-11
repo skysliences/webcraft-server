@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-const maxWorldMobs = 32
+// Absolute save validation bound, independent from the configurable live limit.
+const maxWorldMobs = 4096
 const mobNamespace uint32 = 0x80000000
 
 type mobSpec struct {
@@ -32,15 +33,22 @@ var mobSpecs = map[string]mobSpec{
 // Mob IDs occupy a separate namespace from item drops. Only the server moves,
 // spawns, damages and removes mobs; clients receive the existing entity frames.
 type Mob struct {
-	ID                               uint32  `json:"id"`
-	Type                             string  `json:"type"`
-	X                                float64 `json:"x"`
-	Y                                float64 `json:"y"`
-	Z                                float64 `json:"z"`
-	Yaw                              float64 `json:"yaw"`
-	Health                           float64 `json:"health"`
-	Flags                            byte    `json:"flags"`
-	GrowthTicks                      int     `json:"growthTicks,omitempty"`
+	ID                               uint32         `json:"id"`
+	Type                             string         `json:"type"`
+	X                                float64        `json:"x"`
+	Y                                float64        `json:"y"`
+	Z                                float64        `json:"z"`
+	Yaw                              float64        `json:"yaw"`
+	Health                           float64        `json:"health"`
+	Flags                            byte           `json:"flags"`
+	GrowthTicks                      int            `json:"growthTicks,omitempty"`
+	LoveTicks                        int            `json:"loveTicks,omitempty"`
+	BreedCooldown                    int            `json:"breedCooldown,omitempty"`
+	BreedFood                        *api.ItemStack `json:"breedFood,omitempty"`
+	Breeder                          string         `json:"breeder,omitempty"`
+	SpawnReason                      string         `json:"spawnReason,omitempty"`
+	Persistent                       bool           `json:"persistent,omitempty"`
+	InactiveTicks                    int            `json:"inactiveTicks,omitempty"`
 	walkMS, attackMS, burnMS, fleeMS int
 	path                             []VoxelPos
 	pathTicks                        int
@@ -51,8 +59,11 @@ func validMob(m *Mob) bool {
 	if m == nil {
 		return false
 	}
+	if len(m.SpawnReason) > 64 || m.InactiveTicks < 0 || m.InactiveTicks > 1200000 {
+		return false
+	}
 	spec, ok := mobSpecs[m.Type]
-	return ok && m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, .01, spec.Health) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000
+	return ok && m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, .01, spec.Health) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000 && m.LoveTicks >= 0 && m.LoveTicks <= animalLoveTicks && m.BreedCooldown >= 0 && m.BreedCooldown <= animalBreedCooldown && len(m.Breeder) <= 128 && (m.BreedFood == nil || m.BreedFood.Count == 1 && m.BreedFood.ID > 0 && validMeta(m.BreedFood.Meta) && validEnch(m.BreedFood.Ench) && animalFood(m.Type, m.BreedFood.ID))
 }
 func sortedMobIDs(r *Room) []uint32 {
 	ids := make([]uint32, 0, len(r.Mobs))
@@ -63,7 +74,7 @@ func sortedMobIDs(r *Room) []uint32 {
 	return ids
 }
 func mobData(m *Mob, reason string) map[string]any {
-	return map[string]any{"entityId": m.ID, "type": m.Type, "x": m.X, "y": m.Y, "z": m.Z, "health": m.Health, "flags": m.Flags, "growthTicks": m.GrowthTicks, "reason": reason}
+	return map[string]any{"entityId": m.ID, "type": m.Type, "x": m.X, "y": m.Y, "z": m.Z, "health": m.Health, "flags": m.Flags, "growthTicks": m.GrowthTicks, "reason": reason, "spawnReason": m.SpawnReason, "category": mobCategory(m.Type), "persistent": mobPersistent(m), "inactiveTicks": m.InactiveTicks}
 }
 func isNight(t uint64) bool { t %= 24000; return t >= 13000 && t < 23000 }
 func (s *Server) worldTick(r *Room) {
@@ -83,7 +94,7 @@ func (s *Server) worldTick(r *Room) {
 	if s.tick%10 == 0 {
 		s.emit(api.WorldTimeChanged, r, nil, map[string]any{"time": r.root().Time, "reason": "tick"})
 	}
-	if s.tick%20 == 0 && s.mobSpawningAllowed(r) {
+	if s.mobSpawningAllowed(r) {
 		s.spawnAmbientMobs(r)
 	}
 	s.mobsTick(r)
@@ -144,8 +155,11 @@ func (s *Server) prepareMobWithFlags(r *Room, p *Peer, typ string, x, y, z float
 	if !ok {
 		return nil, fmt.Errorf("未知生物类型：%s。", typ)
 	}
-	if len(r.Mobs)+len(reserved) >= maxWorldMobs {
-		return nil, fmt.Errorf("世界生物数量已达上限（32）。")
+	if !s.mobCapacity(r, len(reserved)+1) {
+		return nil, fmt.Errorf("世界生物数量已达安全上限（%d）。", s.config.MobSpawning.TotalLimit)
+	}
+	if spec.Hostile && s.difficulty(r) == "peaceful" && typ != "ender_dragon" && typ != "wither" && typ != "end_crystal" {
+		return nil, fmt.Errorf("和平难度不能生成敌对生物。")
 	}
 	if typ != "ender_dragon" && typ != "end_crystal" && typ != "wither" && typ != "blaze" && (!s.mobFits(r, typ, x, y, z) || !s.mobSolid(r, int(math.Floor(x)), int(math.Floor(y))-1, int(math.Floor(z)))) {
 		return nil, fmt.Errorf("生物需要站在空旷的地面上。")
@@ -160,11 +174,17 @@ func (s *Server) prepareMobWithFlags(r *Room, p *Peer, typ string, x, y, z float
 		}
 		nextID++
 	}
-	m := &Mob{ID: mobNamespace | nextID, Type: typ, X: x, Y: y, Z: z, Health: spec.Health, Yaw: s.rng.Float64() * math.Pi * 2, Flags: flags}
+	m := &Mob{ID: mobNamespace | nextID, Type: typ, X: x, Y: y, Z: z, Health: spec.Health, Yaw: s.rng.Float64() * math.Pi * 2, Flags: flags, SpawnReason: reason}
+	if persistent, ok := context["persistent"].(bool); ok {
+		m.Persistent = persistent
+	}
 	if flags&mobFlagBaby != 0 {
 		m.GrowthTicks = 24000
 	}
-	if !s.allowed(api.EntitySpawning, r, p, contextualMobData(m, reason, context)) {
+	if !validMob(m) {
+		return nil, fmt.Errorf("无效生物状态。")
+	}
+	if !s.allowed(api.EntitySpawning, r, p, mobLifecycleData(p, m, reason, context)) {
 		return nil, fmt.Errorf("生物生成已被插件阻止。")
 	}
 	return m, nil
@@ -178,6 +198,29 @@ func contextualMobData(m *Mob, reason string, context map[string]any) map[string
 		data[k] = value
 	}
 	data["target"] = mobTarget(m)
+	data["actor"], data["source"] = "server", "server"
+	if reason == "natural" {
+		data["source"] = "natural"
+	}
+	if reason == "plugin" {
+		data["source"] = "plugin"
+	}
+	if pActor, ok := context["actor"]; ok {
+		data["actor"] = pActor
+	}
+	if source, ok := context["source"]; ok {
+		data["source"] = source
+	}
+	return data
+}
+func mobLifecycleData(p *Peer, m *Mob, reason string, context map[string]any) map[string]any {
+	data := contextualMobData(m, reason, context)
+	if p != nil {
+		data["actor"] = p.sid
+		if context["source"] == nil {
+			data["source"] = "player"
+		}
+	}
 	return data
 }
 func (s *Server) publishMob(r *Room, p *Peer, m *Mob, reason string, context map[string]any) {
@@ -194,7 +237,7 @@ func (s *Server) commitMob(r *Room, m *Mob) {
 
 }
 func (s *Server) publishPreparedMob(r *Room, p *Peer, m *Mob, reason string, context map[string]any) {
-	s.emit(api.EntitySpawned, r, p, contextualMobData(m, reason, context))
+	s.emit(api.EntitySpawned, r, p, mobLifecycleData(p, m, reason, context))
 	for peer := range r.Peers {
 		s.syncMobsFor(peer)
 	}
@@ -285,89 +328,33 @@ func (s *Server) blockLight(r *Room, x, y, z int) int {
 	return best
 }
 func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
-	spec := mobSpecs[typ]
+	spec, ok := mobSpecs[typ]
+	if !ok || spec.Hostile && s.difficulty(r) == "peaceful" {
+		return false
+	}
+	floor := s.block(r, x, y-1, z)
+	if s.kind(floor) != 1 || s.nameOf(floor) == "Bedrock" || s.nameOf(floor) == "Glass" || isLava(floor) {
+		return false
+	}
 	if !s.mobFits(r, typ, float64(x)+.5, float64(y), float64(z)+.5) {
 		return false
 	}
 	if r.dimName() == "nether" {
-		floor := s.block(r, x, y-1, z)
-		return floor != 0 && !isLava(floor)
+		// Our supported Nether ambient mobs belong to fortresses. Do not
+		// populate every netherrack cave with blazes and wither skeletons.
+		bricks := s.rules.byName["Under Bricks"]
+		if bricks == 0 {
+			bricks = 183
+		}
+		return (typ == "blaze" || typ == "wither_skeleton") && floor == bricks && (typ == "blaze" || s.blockLight(r, x, y, z) == 0)
 	}
 	if r.dimName() == "end" {
-		floor := s.block(r, x, y-1, z)
-		return floor != 0 && !isLava(floor)
+		return typ == "enderman" && s.blockLight(r, x, y, z) == 0
 	}
 	if spec.Hostile {
-		return isNight(r.Time) && s.blockLight(r, x, y, z) == 0
+		return s.mobSkyLight(r, x, y, z) <= 7 && s.blockLight(r, x, y, z) == 0
 	}
-	return !isNight(r.Time) && s.block(r, x, y-1, z) == s.rules.byName["Grass Block"]
-}
-func (s *Server) spawnAmbientMobs(r *Room) {
-	animals, monsters := 0, 0
-	for _, m := range r.Mobs {
-		if mobSpecs[m.Type].Hostile {
-			monsters++
-		} else {
-			animals++
-		}
-	}
-	hostile := isNight(r.Time) || r.dimName() == "nether" || r.dimName() == "end"
-	if hostile && monsters >= 16 || !hostile && animals >= 16 {
-		return
-	}
-	tries := 0
-	for p := range r.Peers {
-		if p.state == nil || p.state.Dead {
-			continue
-		}
-		for i := 0; i < 4 && tries < 12; i++ {
-			tries++
-			a := s.rng.Float64() * math.Pi * 2
-			dist := 10 + s.rng.Float64()*18
-			types := []string{"cow", "pig", "sheep", "chicken"}
-			if r.dimName() == "nether" {
-				dist = 16 + s.rng.Float64()*16
-				types = []string{"blaze", "wither_skeleton"}
-			} else if r.dimName() == "end" {
-				dist = 16 + s.rng.Float64()*16
-				types = []string{"enderman", "shulker"}
-			} else if hostile {
-				dist = 24 + s.rng.Float64()*16
-				types = []string{"zombie", "spider", "skeleton", "creeper", "enderman"}
-			}
-			x, z := int(p.state.X+math.Sin(a)*dist), int(p.state.Z+math.Cos(a)*dist)
-			y := s.surface(r, x, z)
-			if y == 0 {
-				continue
-			}
-			near := false
-			for other := range r.Peers {
-				if math.Hypot(float64(x)+.5-other.state.X, float64(z)+.5-other.state.Z) < map[bool]float64{true: 24, false: 8}[hostile] {
-					near = true
-					break
-				}
-			}
-			if near {
-				continue
-			}
-			for _, m := range r.Mobs {
-				if math.Hypot(float64(x)-m.X, float64(z)-m.Z) < 3 {
-					near = true
-					break
-				}
-			}
-			if near {
-				continue
-			}
-			typ := types[s.rng.Intn(len(types))]
-			if !s.canNaturalSpawn(r, typ, x, y, z) {
-				continue
-			}
-			if _, err := s.spawnMob(r, nil, typ, float64(x)+.5, float64(y), float64(z)+.5, "natural"); err == nil {
-				return
-			}
-		}
-	}
+	return floor == s.rules.byName["Grass Block"] && (s.mobSkyLight(r, x, y, z) >= 9 || s.blockLight(r, x, y, z) >= 9)
 }
 func mobPosition(out []byte, m *Mob) []byte {
 	out = entityPosition(out, &ItemDrop{X: m.X, Y: m.Y, Z: m.Z})
@@ -429,7 +416,14 @@ func (s *Server) mobEvent(r *Room, m *Mob, event byte, arg uint16) {
 	}
 }
 func (s *Server) removeMob(r *Room, m *Mob, reason string) bool {
-	if !s.allowed(api.EntityDespawning, r, nil, mobData(m, reason)) {
+	return s.removeMobWithData(r, m, mobData(m, reason))
+}
+func (s *Server) removeMobWithData(r *Room, m *Mob, data map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	data["actor"], data["source"], data["target"] = "server", "server", mobTarget(m)
+	if m == nil || r.Mobs[m.ID] != m || !s.allowed(api.EntityDespawning, r, nil, data) || r.Mobs[m.ID] != m {
 		return false
 	}
 	delete(r.Mobs, m.ID)
@@ -437,7 +431,7 @@ func (s *Server) removeMob(r *Room, m *Mob, reason string) bool {
 	for p := range r.Peers {
 		s.syncMobsFor(p)
 	}
-	s.emit(api.EntityDespawned, r, nil, mobData(m, reason))
+	s.emit(api.EntityDespawned, r, nil, data)
 	return true
 }
 func (s *Server) damageMob(r *Room, p *Peer, m *Mob, amount float64, reason string) bool {
@@ -563,6 +557,17 @@ func (s *Server) walkMob(r *Room, m *Mob, dx, dz float64) bool {
 func (s *Server) mobsTick(r *Room) {
 	for _, id := range sortedMobIDs(r) {
 		m := r.Mobs[id]
+		if m == nil {
+			continue
+		}
+		target, nearest := s.nearestMobPlayer(r, m.X, m.Y, m.Z)
+		if s.despawnMob(r, m, nearest) {
+			continue
+		}
+		// Saved passive mobs pause outside active terrain instead of loading it.
+		if nearest > 128 || !s.mobAreaLoaded(r, m.Type, m.X, m.Z) {
+			continue
+		}
 		spec := mobSpecs[m.Type]
 		// A removed floor cannot leave an animal suspended in the air.
 		// 飞行生物、Boss 和固定实体免除地面坠落检测
@@ -584,24 +589,6 @@ func (s *Server) mobsTick(r *Room) {
 				s.removeMob(r, m, "void")
 				continue
 			}
-		}
-		var target *Peer
-		nearest := math.Inf(1)
-		for p := range r.Peers {
-			if p.state.Dead {
-				continue
-			}
-			d := math.Hypot(p.state.X-m.X, p.state.Z-m.Z)
-			if d < nearest {
-				nearest = d
-				target = p
-			}
-		}
-		// Boss、末地水晶和重要战斗实体绝不因超出玩家 128 格距离被自动清除
-		isBossOrSpecial := m.Type == "ender_dragon" || m.Type == "end_crystal" || m.Type == "wither"
-		if !isBossOrSpecial && nearest > 128 {
-			s.removeMob(r, m, "distance")
-			continue
 		}
 		m.attackMS = max(0, m.attackMS-100)
 		m.fleeMS = max(0, m.fleeMS-100)

@@ -114,16 +114,18 @@ func TestRedstonePistonAndHopper(t *testing.T) {
 	}
 
 	// C. 测试漏斗传输物品
-	topChest := &Container{Slots: make(Stacks, 27)}
+	topChest := &Container{Kind: "chest", Slots: make(Stacks, 27)}
 	topChest.Slots[0] = stack(s.rules.byName["Iron Ingot"], 5, 0)
 	r.Containers[blockKey(10, 62, 10)] = topChest
 
 	hopper := &Container{Kind: "hopper", Slots: make(Stacks, 5)}
 	r.Containers[blockKey(10, 61, 10)] = hopper
 
-	transferred := s.transferOneItem(topChest, hopper)
+	r.Edits[blockKey(10, 62, 10)] = s.id("Chest")
+	r.Edits[blockKey(10, 61, 10)] = blkHopper
+	transferred := s.moveHopperItem(r, blockKey(10, 61, 10), blockKey(10, 62, 10), blockKey(10, 61, 10), 0, 1, "hopper_pull")
 	if !transferred {
-		t.Fatalf("expected transferOneItem to return true")
+		t.Fatalf("expected hopper transfer: chest=%d:%s hopper=%d:%s item=%+v valid=%v", s.id("Chest"), s.nameOf(s.id("Chest")), blkHopper, s.nameOf(blkHopper), topChest.Slots[0], s.validStack(topChest.Slots[0], 64))
 	}
 
 	// 验证漏斗从上方箱子抽取了 1 个铁锭

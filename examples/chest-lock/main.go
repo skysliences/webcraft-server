@@ -90,6 +90,7 @@ func main() {
 		if len(c.Config) > 0 && string(c.Config) != "null" {
 			_ = json.Unmarshal(c.Config, &cfg)
 		}
+		_ = os.MkdirAll(c.DataDir, 0755)
 		dataFile = filepath.Join(c.DataDir, "locks.json")
 		raw, err := os.ReadFile(dataFile)
 		if err == nil {
@@ -108,6 +109,10 @@ func main() {
 	}
 
 	persist := func() error {
+		if dataFile == "" {
+			return nil
+		}
+		_ = os.MkdirAll(filepath.Dir(dataFile), 0755)
 		mu.RLock()
 		list := make([]*LockRecord, 0, len(chestLocks))
 		for _, r := range chestLocks {
@@ -138,7 +143,7 @@ func main() {
 		placedOnKey := e.String("placedOnBlockKey")
 		placedOnID := int(e.Number("placedOnBlock"))
 		placedOnName := e.String("placedOnBlockName")
-		isChest := placedOnKey == "Chest" || placedOnName == "Chest" || placedOnID == 140 || placedOnID == 54 || strings.Contains(strings.ToLower(placedOnKey), "chest")
+		isChest := placedOnKey == "Chest" || placedOnName == "Chest" || (placedOnID >= 140 && placedOnID <= 143) || placedOnID == 54 || strings.Contains(strings.ToLower(placedOnKey), "chest") || strings.Contains(strings.ToLower(placedOnName), "chest")
 		if !isChest {
 			return nil
 		}
@@ -154,12 +159,21 @@ func main() {
 		ck := posKey(cx, cy, cz)
 		mu.RLock()
 		_, exists := chestLocks[ck]
+		if !exists {
+			for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				if _, ok := chestLocks[posKey(cx+d[0], cy, cz+d[1])]; ok {
+					exists = true
+					break
+				}
+			}
+		}
 		mu.RUnlock()
 
 		if exists {
-			c.Message(e, "§c[箱子锁] 该箱子已经受到密码保护。")
+			c.Message(e, "§c[箱子锁] 该箱子（或连体大箱子）已经受到密码保护。")
 			return nil
 		}
+		log.Printf("[chest-lock] block.placed: sign at (%d,%d,%d) placed on chest at (%d,%d,%d)", sx, sy, sz, cx, cy, cz)
 
 		// 弹出设置密码界面
 		c.OpenCustomUIFor(e, api.CustomUIDefinition{
@@ -256,6 +270,7 @@ func main() {
 			})
 
 			_ = persist()
+			log.Printf("[chest-lock] chest locked: chest at (%d,%d,%d) by %s (sign at %d,%d,%d)", cx, cy, cz, e.Player.Name, sx, sy, sz)
 			c.Message(e, "§a[箱子锁] 密码设置成功！箱子已被木牌锁定保护。")
 			return nil
 		}
@@ -284,25 +299,47 @@ func main() {
 			cx := int(toFloat(customData["chestX"]))
 			cy := int(toFloat(customData["chestY"]))
 			cz := int(toFloat(customData["chestZ"]))
+			openX := cx
+			openY := cy
+			openZ := cz
+			if ox, ok := customData["openX"]; ok {
+				openX = int(toFloat(ox))
+			}
+			if oy, ok := customData["openY"]; ok {
+				openY = int(toFloat(oy))
+			}
+			if oz, ok := customData["openZ"]; ok {
+				openZ = int(toFloat(oz))
+			}
+
 			ck := posKey(cx, cy, cz)
 
 			mu.RLock()
 			record := chestLocks[ck]
+			if record == nil {
+				for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+					if adjRec := chestLocks[posKey(cx+d[0], cy, cz+d[1])]; adjRec != nil {
+						record = adjRec
+						break
+					}
+				}
+			}
 			mu.RUnlock()
 
 			if record == nil {
-				// 可能已被拆除，直接打开
-				c.OpenContainer(e.World.ID, e.Player.ID, cx, cy, cz)
+				c.Message(e, "§c[箱子锁] 无法找到该箱子的锁定信息。")
 				return nil
 			}
 
 			if record.Password != pwd {
+				log.Printf("[chest-lock] unlock failed for player %s at (%d,%d,%d): password mismatch", e.Player.Name, cx, cy, cz)
 				c.Message(e, "§c[箱子锁] 密码错误！无法打开此箱子。")
 				return nil
 			}
 
+			log.Printf("[chest-lock] unlock success for player %s at (%d,%d,%d), opening (%d,%d,%d)", e.Player.Name, cx, cy, cz, openX, openY, openZ)
 			c.Message(e, "§a[箱子锁] 密码正确，已为您打开箱子！")
-			c.OpenContainer(e.World.ID, e.Player.ID, cx, cy, cz)
+			c.OpenContainer(e.World.ID, e.Player.ID, openX, openY, openZ)
 			return nil
 		}
 
@@ -333,27 +370,26 @@ func main() {
 
 		mu.RLock()
 		record := chestLocks[ck]
-		mu.RUnlock()
-
 		if record == nil {
 			// 检查相邻水平 4 格是否存在锁定的连体大箱子
 			for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
 				adjKey := posKey(cx+d[0], cy, cz+d[1])
-				mu.RLock()
 				adjRec := chestLocks[adjKey]
-				mu.RUnlock()
 				if adjRec != nil {
 					record = adjRec
 					break
 				}
 			}
-			if record == nil {
-				return nil
-			}
+		}
+		mu.RUnlock()
+
+		if record == nil {
+			return nil
 		}
 
 		// 拦截常规开箱动作（任何玩家包括房主/主人/管理员每次打开均需输入密码）
 		e.Cancel("该箱子受密码保护，请输入密码。")
+		log.Printf("[chest-lock] intercepted chest open at (%d,%d,%d) (record chest: %v) for player %s", cx, cy, cz, record.ChestPos, e.Player.Name)
 
 		prompt := fmt.Sprintf("这是玩家 %s 的私有加密箱子。请输入访问密码以解锁：", record.OwnerName)
 		if e.Player != nil && (e.Player.AccountID == record.OwnerUID || e.Player.Name == record.OwnerName) {
@@ -378,7 +414,12 @@ func main() {
 				{ID: "cancel", Text: "取消", Type: "cancel"},
 			},
 			Data: map[string]any{
-				"chestX": cx, "chestY": cy, "chestZ": cz,
+				"chestX": record.ChestPos[0],
+				"chestY": record.ChestPos[1],
+				"chestZ": record.ChestPos[2],
+				"openX":  cx,
+				"openY":  cy,
+				"openZ":  cz,
 			},
 		})
 		return nil
@@ -393,6 +434,14 @@ func main() {
 
 		mu.RLock()
 		chestLock := chestLocks[bk]
+		if chestLock == nil {
+			for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				if adjRec := chestLocks[posKey(bx+d[0], by, bz+d[1])]; adjRec != nil {
+					chestLock = adjRec
+					break
+				}
+			}
+		}
 		signLock := signLocks[bk]
 		mu.RUnlock()
 
@@ -432,6 +481,7 @@ func main() {
 
 		if ok {
 			_ = persist()
+			log.Printf("[chest-lock] sign broken at (%d,%d,%d), unlocked chest at %v", bx, by, bz, signLock.ChestPos)
 			c.Message(e, "§e[箱子锁] 锁门木牌已拆除，箱子已成功解除密码保护。")
 		}
 		return nil

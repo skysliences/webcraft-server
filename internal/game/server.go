@@ -41,6 +41,7 @@ type Config struct {
 	WorldName             string
 	WorldMode             string
 	Anticheat             AnticheatConfig
+	MobSpawning           *api.MobSpawningConfig
 }
 type Server struct {
 	coreRules            *Rules
@@ -76,9 +77,18 @@ type Server struct {
 	worldBindingPrevious string
 	worldBindingNew      bool
 	closeError           error
+	testEventHook        func(*api.Event)
 }
 
 func New(config Config) (*Server, error) {
+	mobConfig := DefaultMobSpawningConfig()
+	if config.MobSpawning != nil {
+		mobConfig = *config.MobSpawning
+	}
+	if err := validateMobSpawningConfig(mobConfig); err != nil {
+		return nil, err
+	}
+	config.MobSpawning = &mobConfig
 	unlock, err := lockData(config.DataDir)
 	if err != nil {
 		return nil, err

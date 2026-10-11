@@ -14,7 +14,7 @@ import (
 // the extension hook registry used by the survival feature modules.
 // ---------------------------------------------------------------------------
 
-const saveVersionCurrent = 8
+const saveVersionCurrent = 9
 
 // maxWorldW is the largest world the server stores. The browser engine
 // accepts up to 5120, but block keys use 12 bits per horizontal axis.

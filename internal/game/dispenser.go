@@ -72,14 +72,28 @@ func (s *Server) dispenseMechanic(r *Room, k uint64, state *MechanicState) bool 
 	blockContext := data
 	output := Stacks{}
 	if state.Kind == "dropper" && r.Containers[destKey] != nil {
-		dest = r.Containers[destKey]
+		dest = s.automationContainer(r, destKey)
+		if dest == nil {
+			return false
+		}
 		destBefore, destAfter = cloneStacks(dest.Slots), cloneStacks(dest.Slots)
 		if !s.insertDispensed(destAfter, one, func(i int) bool {
-			return s.mayPlace(&Peer{window: &Window{Kind: dest.Kind, Slots: dest.Slots}}, 46+i, one)
+			return s.automationSlot(dest, i, state.Facing^1, one, true)
 		}) {
 			return false
 		}
 		data["behavior"] = "container_transfer"
+		data["reason"] = "dropper_transfer"
+		data["initiator"] = containerTarget(k, c)
+		data["origin"], data["target"] = containerTarget(k, c), containerTarget(destKey, dest)
+		data["sourceBefore"], data["sourceAfter"] = cloneStacks(beforeSlots), cloneStacks(afterSlots)
+		data["sourceSlot"], data["count"] = slot, 1
+		for j := range destAfter {
+			if !reflect.DeepEqual(destBefore[j], destAfter[j]) {
+				data["destinationSlot"] = j
+				break
+			}
+		}
 		data["destinationBefore"], data["destinationAfter"] = cloneStacks(destBefore), cloneStacks(destAfter)
 	} else if state.Kind == "dispenser" {
 		handled := false
@@ -190,6 +204,9 @@ func (s *Server) dispenseMechanic(r *Room, k uint64, state *MechanicState) bool 
 		output = append(output, one)
 	}
 	data["after"], data["containerAfter"] = itemSnapshot(afterSlots[slot]), cloneStacks(afterSlots)
+	if dest != nil && !s.allowed(api.InventoryMoving, r, nil, data) {
+		return false
+	}
 	if !s.allowed(api.BlockDispensing, r, nil, data) || !s.allowed(api.MechanicChanging, r, nil, data) || !s.allowed(api.InventoryChanging, r, nil, data) {
 		return false
 	}
@@ -209,6 +226,10 @@ func (s *Server) dispenseMechanic(r *Room, k uint64, state *MechanicState) bool 
 		r.Containers[k] = c
 		if dest != nil {
 			copy(dest.Slots, destAfter)
+			if dest.Kind == "hopper" {
+				getRedstone(r).Hoppers[destKey] = hopperCooldown
+			}
+			r.rt().redstoneDirty = true
 		}
 		storeMechanic(r, k, next)
 		for _, d := range drops {
@@ -234,6 +255,9 @@ func (s *Server) dispenseMechanic(r *Room, k uint64, state *MechanicState) bool 
 	s.broadcastMechanic(r, k)
 	s.notifyMechanicContainers(r, k, destKey)
 	s.emit(api.InventoryChanged, r, nil, data)
+	if dest != nil {
+		s.emit(api.InventoryMoved, r, nil, data)
+	}
 	s.emit(api.MechanicChanged, r, nil, data)
 	s.emit(api.BlockDispensed, r, nil, data)
 	if effectPublish != nil {

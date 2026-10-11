@@ -24,8 +24,8 @@ type MechanicState struct {
 	Observed    string    `json:"observed,omitempty"`
 }
 
-var mechanicKinds = map[int]string{blkCauldron: "cauldron", blkSign: "sign", blkJukebox: "jukebox", blkDispenser: "dispenser", blkDropper: "dropper", blkObserver: "observer", blkRedstoneLamp: "lamp", blkDaylightDetector: "daylight_detector", blkComposter: "composter"}
-var mechanicItems = map[int]int{itemRail: blkRail, itemPoweredRail: blkPoweredRail, itemDetectorRail: blkDetectorRail, itemDispenser: blkDispenser, itemDropper: blkDropper, itemObserver: blkObserver, itemRedstoneLamp: blkRedstoneLamp, itemDaylightDetector: blkDaylightDetector, itemComposter: blkComposter, itemCauldron: blkCauldron, itemOakSign: blkSign, itemJukebox: blkJukebox}
+var mechanicKinds = map[int]string{193: "hopper", blkCauldron: "cauldron", blkSign: "sign", blkJukebox: "jukebox", blkDispenser: "dispenser", blkDropper: "dropper", blkObserver: "observer", blkRedstoneLamp: "lamp", blkDaylightDetector: "daylight_detector", blkComposter: "composter"}
+var mechanicItems = map[int]int{385: 193, itemRail: blkRail, itemPoweredRail: blkPoweredRail, itemDetectorRail: blkDetectorRail, itemDispenser: blkDispenser, itemDropper: blkDropper, itemObserver: blkObserver, itemRedstoneLamp: blkRedstoneLamp, itemDaylightDetector: blkDaylightDetector, itemComposter: blkComposter, itemCauldron: blkCauldron, itemOakSign: blkSign, itemJukebox: blkJukebox}
 
 func cloneMechanic(v *MechanicState) *MechanicState {
 	if v == nil {
@@ -50,6 +50,9 @@ func (s *Server) validMechanic(v *MechanicState) bool {
 		known = known || k == v.Kind
 	}
 	if !known || v.Facing < 0 || v.Facing > 5 || v.SupportFace < 0 || v.SupportFace > 5 || v.Power < 0 || v.Power > 15 || v.Pulse < 0 || v.Pulse > 20 || v.Level < 0 || v.Level > 7 || len(v.Observed) > 8192 {
+		return false
+	}
+	if v.Kind == "hopper" && v.Facing == 1 {
 		return false
 	}
 	if v.Kind == "cauldron" && v.Level > 3 {
@@ -90,6 +93,9 @@ func (s *Server) defaultMechanic(r *Room, k uint64, b int) *MechanicState {
 		v.Facing = d.Facing
 		v.Power = d.Power
 	}
+	if kind == "hopper" {
+		v.Facing = 0
+	}
 	if kind == "observer" {
 		v.Observed = s.observerObservation(r, k, v.Facing)
 	}
@@ -129,6 +135,11 @@ func syncMechanicView(r *Room, k uint64, v *MechanicState) {
 	}
 }
 func (s *Server) trackMechanicBlock(r *Room, k uint64, b int) {
+	if kind := containerKinds[s.nameOf(b)]; kind != "" && kind != "ender" && r.Containers[k] == nil {
+		r.Containers[k] = &Container{Kind: kind, Slots: make(Stacks, windowSize(kind))}
+		r.Dirty = true
+	}
+
 	kind := mechanicKinds[b]
 	cur := mechanicSnapshot(r, k)
 	if kind != "" {
@@ -166,7 +177,7 @@ func mechanicKindsFromName(k string) bool {
 }
 func (s *Server) restoreMechanics(r *Room) {
 	for k, b := range r.Edits {
-		if mechanicKinds[b] != "" || isRailBlock(b) {
+		if mechanicKinds[b] != "" || isRailBlock(b) || s.containerBlock(b) {
 			s.trackMechanicBlock(r, k, b)
 		}
 	}

@@ -152,6 +152,7 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 	data["face"] = face
 	data["placedOnX"] = m.X
 	data["placedOnY"] = m.Y
+	data["placedOnZ"] = m.Z
 	data["placedOnBlock"] = target
 	placedOnName := ""
 	if target >= 0 && target < len(s.rules.Names) {

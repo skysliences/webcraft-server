@@ -96,7 +96,7 @@ func TestSpawnEggRejectsInvalidPermissionPositionCapacityAndStaleAction(t *testi
 		case "no-floor":
 			r.Edits[blockKey(12, 59, 10)] = 0
 		case "capacity":
-			for i := uint32(1); i <= maxWorldMobs; i++ {
+			for i := uint32(1); int(i) <= s.config.MobSpawning.TotalLimit; i++ {
 				r.Mobs[mobNamespace|i] = &Mob{ID: mobNamespace | i}
 			}
 		case "missing":

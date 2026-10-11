@@ -124,7 +124,17 @@ func (s *Server) notifyMechanicContainers(r *Room, keys ...uint64) {
 			continue
 		}
 		for _, k := range keys {
-			if p.window.Key == k {
+			if p.window.Key == k || p.window.Key2 != 0 && p.window.Key2 == k {
+				if p.window.Key2 != 0 {
+					if c := r.Containers[p.window.Key]; c != nil {
+						copy(p.window.Slots[:27], c.Slots)
+					}
+					if c := r.Containers[p.window.Key2]; c != nil {
+						copy(p.window.Slots[27:], c.Slots)
+					}
+				} else if c := r.Containers[k]; c != nil {
+					p.window.Slots = c.Slots
+				}
 				p.json(map[string]any{"t": "wslot", "w": p.window.ID, "s": p.window.Slots})
 				break
 			}

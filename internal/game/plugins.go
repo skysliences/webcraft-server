@@ -69,6 +69,9 @@ func (s *Server) event(name string, r *Room, p *Peer, data map[string]any) *api.
 }
 func (s *Server) emit(name string, r *Room, p *Peer, data map[string]any) *api.Event {
 	e := s.event(name, r, p, data)
+	if s.testEventHook != nil {
+		s.testEventHook(e)
+	}
 	if s.plugins != nil {
 		s.queueActions(s.plugins.Emit(e))
 	}
@@ -248,6 +251,32 @@ func (s *Server) applyAction(a api.Action) {
 		}
 	}
 	switch a.Type {
+	case "feed_animal":
+		if p == nil || p.state == nil || p.state.Inv == nil || p.state.Inv.Selected != a.Slot || a.Expected == nil {
+			return
+		}
+		s.feedAnimal(p, r.Mobs[a.EntityID], a.Expected, true)
+	case "activate_hopper":
+		if !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 1, 126) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) || len(a.ContainerExpected) != 5 {
+			return
+		}
+		k := blockKey(int(a.X), int(a.Y), int(a.Z))
+		c := s.automationContainer(r, k)
+		if c == nil || c.Kind != "hopper" {
+			return
+		}
+		expected := make(Stacks, 5)
+		for i, item := range a.ContainerExpected {
+			if item != nil {
+				expected[i] = (*Stack)(item.Clone())
+				if !s.validStack(expected[i], s.rules.max(item.ID)) {
+					return
+				}
+			}
+		}
+		if reflect.DeepEqual(c.Slots, expected) {
+			s.activateHopper(r, k)
+		}
 	case "dispense_block":
 		if !number(a.X, r.minCoord(), r.maxCoord()) || !number(a.Y, 1, 127) || !number(a.Z, r.minCoord(), r.maxCoord()) || a.X != math.Trunc(a.X) || a.Y != math.Trunc(a.Y) || a.Z != math.Trunc(a.Z) || len(a.ContainerExpected) != 9 {
 			return
@@ -372,8 +401,12 @@ func (s *Server) applyAction(a api.Action) {
 			s.clearEffects(p, "plugin")
 		}
 	case "spawn_mob":
-		if _, err := s.spawnMob(r, nil, a.EntityType, a.X, a.Y, a.Z, "plugin"); err != nil {
+		context := map[string]any{"persistent": a.Persistent, "actor": "plugin", "source": "plugin"}
+		mob, err := s.prepareMob(r, nil, a.EntityType, a.X, a.Y, a.Z, "plugin", context)
+		if err != nil {
 			log.Printf("plugin mob spawn: %v", err)
+		} else {
+			s.publishMob(r, nil, mob, "plugin", context)
 		}
 	case "set_time":
 		s.setWorldTime(r, nil, a.Ticks, "plugin")

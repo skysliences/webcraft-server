@@ -36,8 +36,8 @@ func (s *Server) useSpawnEgg(p *Peer, m Message, expected *api.ItemStack) bool {
 	}
 	off := faceOffsets[m.F]
 	x, y, z := float64(m.X+off[0])+.5, float64(m.Y+off[1]), float64(m.Z+off[2])+.5
-	if !s.mobFits(r, item.SpawnEgg, x, y, z) || !s.mobSolid(r, m.X+off[0], m.Y+off[1]-1, m.Z+off[2]) || len(r.Mobs) >= maxWorldMobs {
-		p.sys("生成蛋需要对空旷地面使用，且世界生物数量不能超过 32。")
+	if !s.mobFits(r, item.SpawnEgg, x, y, z) || !s.mobSolid(r, m.X+off[0], m.Y+off[1]-1, m.Z+off[2]) || !s.mobCapacity(r, 1) {
+		p.sys("生成蛋需要对空旷地面使用，且世界生物数量未达服务器安全上限。")
 		return false
 	}
 	slot := p.state.Inv.Selected

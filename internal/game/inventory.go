@@ -481,6 +481,14 @@ func (s *Server) openWindow(p *Peer, key uint64, kind string, q int, source ...s
 	}
 	if isDouble {
 		data["doubleChest"] = true
+		x1, y1, z1 := coords(key)
+		x2, y2, z2 := coords(key2)
+		data["chest1X"] = x1
+		data["chest1Y"] = y1
+		data["chest1Z"] = z1
+		data["chest2X"] = x2
+		data["chest2Y"] = y2
+		data["chest2Z"] = z2
 	}
 	if !s.allowed(api.InventoryOpening, p.room, p, data) {
 		p.json(map[string]any{"t": "wopened", "q": q, "w": 0})

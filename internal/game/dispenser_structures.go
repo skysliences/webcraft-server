@@ -79,7 +79,7 @@ func (s *Server) prepareWitherSummon(r *Room, p *Peer, x, y, z int, futureSkull 
 	}
 	data["entityId"] = mob.ID
 	plan.Valid = func() bool {
-		if len(r.Mobs) >= maxWorldMobs || r.Mobs[mob.ID] != nil {
+		if !s.mobCapacity(r, 1) || r.Mobs[mob.ID] != nil {
 			return false
 		}
 		fresh := s.findWitherStructure(r, x, y, z, futureSkull)

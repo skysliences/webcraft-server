@@ -420,6 +420,20 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 		invData["stack"] = before.Clone()
 		invData["before"] = before.Clone()
 		invData["after"] = itemSnapshot(after)
+		invData["placedOnX"] = m.X
+		invData["placedOnY"] = m.Y
+		invData["placedOnZ"] = m.Z
+		invData["placedOnBlock"] = target
+		placedOnName := ""
+		if target >= 0 && target < len(s.rules.Names) {
+			placedOnName = baseName(s.rules.Names[target])
+		}
+		placedOnKey := s.registryBlockKey(target)
+		if placedOnKey == "" {
+			placedOnKey = placedOnName
+		}
+		invData["placedOnBlockName"] = placedOnName
+		invData["placedOnBlockKey"] = placedOnKey
 		if !s.allowBlock(p, blockKey(x, y, z), placed, invData) {
 			s.broadcastChunk(r, blockKey(x, y, z), old)
 			s.inventory(p, 0, 0)

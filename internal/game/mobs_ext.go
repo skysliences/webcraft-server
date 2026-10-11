@@ -254,7 +254,7 @@ func init() {
 
 		for _, id := range sortedMobIDs(r) {
 			m := r.Mobs[id]
-			if m == nil || m.Health <= 0 {
+			if m == nil || m.Health <= 0 || !s.mobActive(r, m) {
 				continue
 			}
 			ext := getMobExt(m.ID)

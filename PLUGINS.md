@@ -446,7 +446,7 @@ SDK `Context.UseRedstone(event, blockX, blockY, blockZ, face)` 使用事件中�
 
 ## 生物生成蛋
 
-生成蛋 ID 420–430 依次为 `zombie`、`skeleton`、`creeper`、`spider`、`enderman`、`cow`、`pig`、`sheep`、`chicken`、`wolf`、`villager`，每组最多 64 个。手持蛋对地面的顶面使用，在相邻空位生成对应生物。服务端检查玩家生命、建造锁、游戏模式、交互距离、地面、实体体积、库存及 32 个生物上限；冒险和旁观模式不能使用。生存成功消耗一个，创造不消耗。自然生成规则（时间、光照、难度与 `doMobSpawning`）不阻止手动生成蛋，方便在白天测试怪物；生成后仍遵循生物伤害、燃烧等现有规则。
+生成蛋 ID 420–430 依次为 `zombie`、`skeleton`、`creeper`、`spider`、`enderman`、`cow`、`pig`、`sheep`、`chicken`、`wolf`、`villager`，每组最多 64 个。手持蛋对地面的顶面使用，在相邻空位生成对应生物。服务端检查玩家生命、建造锁、游戏模式、交互距离、地面、实体体积、库存及可配置的单维度生物安全上限（默认 1024）；冒险和旁观模式不能使用。生存成功消耗一个，创造不消耗。自然生成规则（时间、光照与 `doMobSpawning`）不阻止手动生成蛋；和平难度仍阻止普通敌对生物生成，方便在白天测试怪物；生成后仍遵循生物伤害、燃烧等现有规则。
 
 | 事件 | 取消与可修改字段 | 数据 |
 | --- | --- | --- |
@@ -755,3 +755,62 @@ WebCraft 为服务端插件提供了通用客户端弹窗交互系统（Custom U
 - **开箱拦截与密码验证**：任何玩家右键开箱时，插件监听 `inventory.open.before` 并取消常规开箱，随后向玩家弹出密码输入表单；输入正确后通过 `c.OpenContainer` 为其打开箱子；
 - **防盗与解锁**：箱子和木牌受破坏保护（其他人无法破坏）；仅放置木牌的主人打掉木牌后，箱子方可解除密码保护。
 
+
+## 漏斗、自动转移与动物繁殖（API v1，2026-10-11）
+
+漏斗原生方块 ID 为 **193**，物品 ID 为 **385**。这两个原先未使用的核心 ID 现在保留；不改变既有方块、物品、世界 ID 或区块格式。原版 16×16 材质、合成配方、朝向放置、联机状态同步和浏览器单机注册、五格容器界面同步更新。Go 私人服务器与浏览器离线模拟均支持自动转移与动物繁殖；Go 插件进程仍仅在联机服务端运行。红石供电时锁定，成功转移后冷却 400ms；每次容器转移一件，掉落物可按空余容量部分吸取。实际堆叠上限和物品的名称、Lore、属性、附魔、自定义数据共同决定是否能合并。漏斗插入/抽取遵守熔炉和酿造台的方向与槽位规则；末影箱及临时窗口不参与自动转移。浏览器现有容器范围及基础供电范围见 `BROWSER_LOCAL.md`，未实现的复杂红石/酿造玩法仍由 Go 提供。
+
+| Before / 完成事件 | 触发与原因 |
+| --- | --- |
+| `inventory.move.before` / `inventory.moved` | 漏斗 `hopper_push`、`hopper_pull`；投掷器 `dropper_transfer` |
+| `inventory.pickup.before` / `inventory.picked_up` | 漏斗吸取掉落物 `hopper_pickup`，支持部分吸取 |
+| `animal.feed.before` / `animal.fed` | 玩家喂成年动物 `animal_feed` |
+| `animal.breed.before` / `animal.bred` | 两只同种成年动物繁殖 `animal_breed`（保留原事件名与 `mob_id`、`mob_type`、`baby_id` 旧字段） |
+
+以上 Before 可取消，所有字段只读（`mutable` 为空）；Monitor 的取消、字段修改、动作均不生效。`inventory.change.before` / `inventory.changed`、`item.consume.before` / `item.consumed` 仍按实际资源变化触发，创造成员喂食不扣物品。仅在所有 Before、容量、位置、原快照校验通过后提交，不在准备阶段修改任何库存、掉落物、父母状态或生物 ID。成功事件只在提交后发送。漏斗一轮推送与吸取是两笔独立事务，取消其中一笔不会撤销另一笔已成功的操作。
+
+自动转移数据含稳定 `reason`、`actor: server`、`source`、`origin`、`target`、`initiator`、槽位、数量及完整 `stack` 快照；容器转移含 `sourceBefore/After`、`destinationBefore/After`，吸取含原掉落物 `before/after`、`entityId`、`remaining`。完成后立即同步观看容器的玩家（包含大箱子两侧）和掉落物剩余数量。快照保留所有元数据，无法通过修改事件中的物品绕过守恒校验。
+
+繁殖支持牛/羊（小麦）、猪（胡萝卜）、鸡（种子）。分别喂两只同种成年动物，在约 3 格内且无遮挡时产生一只幼崽；首只喂食后进入 30 秒可繁殖状态，繁殖后双亲冷却 5 分钟，幼崽成长 20 分钟。这些时长按世界模拟时间推进。附近已喂食配偶的第二次喂食与出生是同一事务，出生被保护插件取消、位置无效或生物容量不足时，第二份食物和双亲状态均保留。远处第一次喂食是已经完成的独立操作；动物后来靠近时会单独尝试繁殖，不再扣食物，取消出生不会退回之前成功喂食的食物。幼崽的 Baby 标记与成长时间在 `entity.spawn.before` 前已经设置，避免生成事件把幼崽视为成年。
+
+繁殖事件含 `parent/mate/baby`、`parentBefore/After`、`mateBefore/After`、双方 `food/mateFood`、`breeder/mateBreeder` 完整来源和物品快照。待繁殖的食物快照、繁殖状态、冷却及幼崽成长时间持久化为可选字段，旧存档默认零值兼容，不升级存档格式。
+
+SDK `Context.ActivateHopper(e,x,y,z,expectedFiveSlots)` 和 `Context.FeedAnimal(e,entityId)` 深复制预期快照，调用正常游戏规则和所有保护事件。过期快照、错误槽位、死亡/不可建造/距离过远、冷却或红石锁定均拒绝。不要在相应完成事件中无限重复提交相同动作。
+
+`world-policy` 示例新增 `disableHopperTransfers`、`disableAnimalFeeding`、`disableAnimalBreeding`（默认均为 false）；并示范通过 `world-policy:lock_transfer=true` 命名空间数据保护物品自动转移。Lore 仍只是文本；插件可自行监听上述事件解释自己的 Lore，核心不匹配任何硬编码 Lore 文本。
+
+`chest-lock` 示例同时监听自动转移 Before：锁定箱子及其连体箱的输入/输出均阻止，自动化没有玩家身份，不能使用 OP 开箱旁路。按事件世界匹配锁记录，避免误拦截其他世界同坐标的库存。
+
+浏览器事件目录新增上述同名自动化、动物成长、经验和供电事件；本地快照同样递归只读，before 可取消，失败不发送成功事件。离线订阅入口为 `LocalSimulation.events.on`；`automation.feed` / `automation.activate` 与玩家操作、定时器共用事务入口，并防止同步回调重入。时长、食物、动物空间参数通过 `rules/automation.js` 导出到规则 JSON，以 Go 一致性测试校验。无需更改 API v1、Go SDK 现有动作、`GET /api/events` 的名字或旧存档格式。
+
+
+## 生物生成与清除策略
+
+Go 多人服参考 [Spigot 的 mob-spawn-range 配置](https://www.spigotmc.org/wiki/spigot-configuration/)和 [Bukkit 分类上限及生成间隔](https://docs.papermc.io/paper/reference/bukkit-configuration/)。这是按现有物种、地形和 Go 模拟实现的相近规则，未实现原版完整生物群系权重、水生/环境生物分类或结构生成表；浏览器离线模拟保留独立的 32 只预算。
+
+| 环境变量 | 默认 | 规则 |
+| --- | --- | --- |
+| `MOB_MONSTER_LIMIT` | 70 | 自然怪物基准，0 禁止该分类自然生成；0..1000 |
+| `MOB_ANIMAL_LIMIT` | 10 | 自然动物基准，0 禁止该分类自然生成；0..1000 |
+| `MOB_SPAWN_RANGE` | 6 | 玩家周围区块半径，1..8，并受客户端视距和已加载地形约束 |
+| `MOB_MONSTER_INTERVAL` | 1 | Minecraft ticks，0 暂停；0..12000 |
+| `MOB_ANIMAL_INTERVAL` | 400 | Minecraft ticks，默认约 20 秒；0 暂停；0..12000 |
+| `MOB_SPAWN_ATTEMPTS` | 32 | 每次每分类最多采样次数，1..128；每次最多尝试同种 4 只小群 |
+| `MOB_SPAWNS_PER_TICK` | 4 | 每维度每服务端 tick 的自然生成总成功预算，1..32 |
+| `MOB_TOTAL_LIMIT` | 1024 | 所有生物生成入口的单维度安全上限，1..4096 |
+
+分类自然上限为 `floor(基准 × 去重后的有效区块数 / 289)`。单人完整 6 区块半径覆盖 169 区块，对应怪物 40、动物 5；较小视距或地形尚未加载时更低，极小区域的动物上限可能为 0。靠近的玩家不会重复增加同一区块预算；相距较远的玩家区域共同增加预算。下界/末地分别计数。仅活着、已连接且非旁观模式的玩家触发生成或用于距离判断。不会为了生成而强制加载未加载的区块。
+
+自然生物必须离所有有效玩家及世界出生点超过 24 格，且距最近有效玩家不超过 128 格。检查地面、身体空间、液体及现有生物碰撞。主世界怪物需方块光为 0、天光不超过 7，因此白天有屋顶的洞穴也可生成；动物需草地和至少 9 级光。天光使用服务端简化的屋顶/树叶遮蔽模型，不受客户端亮度设置影响。下界当前支持的烈焰人和凋灵骷髅只在下界砖地面尝试自然生成；末地自然生成末影人，不再随机刷新潜影贝。`doMobSpawning=false` 停止自然生成；和平难度在统一入口拒绝普通敌对生物，保留末影龙、末地水晶和凋灵的原有特殊规则。
+
+怪物每 1 tick 尝试、动物每 400 ticks 尝试，配置使用 Minecraft 20 ticks/秒。Go 宿主当前为 10 Hz，每帧推进 2 Minecraft ticks，间隔按向上取整映射到宿主 tick，最短生成周期实际为 100ms；每次有固定采样和成功预算，因此不是原版 20 TPS 全量模拟。
+
+分类计数覆盖有效区块中的现有实体，包含刷怪蛋/刷怪笼/命令生成的普通怪物；显式持久怪物不占自然怪物限额。动物计入自然动物限额；村民、Boss、潜影贝等属于 misc，不挤占动物分类。分类限额仅阻止后续自然生成，刷怪蛋、繁殖、刷怪笼、结构召唤、命令和插件仍使用各自规则，并统一检查 `MOB_TOTAL_LIMIT`。刷怪笼沿用 10 秒检查、16 格激活及附近最多 4 只的现有逻辑，激活距离改为三维距离并排除旁观者，不受 `doMobSpawning` 或自然分类间隔控制。
+
+被动动物（包括未驯服狼）、村民、Boss、潜影贝及显式持久实体不因玩家走远被清除；未激活或未加载的远处实体暂停 AI、成长和繁殖。普通怪物离最近有效玩家超过 128 格，尝试立即清除；32 格外闲置超过 600 Minecraft ticks（30 秒）后，每服务端 tick 以 1/400 概率尝试清除。回到 32 格内重置闲置时间。无人满足距离计算条件时暂停，避免清空世界。插件取消清除会重置本次闲置计时；持久实体仍可正常受伤、死亡。随机清除概率按 10 Hz 实现，其平均等待时间与原版 20 Hz 有差异。
+
+沿用 API v1 `entity.spawn.before/entity.spawned`、`entity.despawn.before/entity.despawned`，before 可取消，无可修改字段。新增只读数据 `spawnReason`、`category`、`persistent`、`inactiveTicks`、`actor`、`source`、`target`，自然生成还附 `categoryLimit/categoryCount/eligibleChunks`；远距清除附 `nearestPlayerDistance`。`reason` 表示当前操作，稳定清除原因包括 `distance`、`random_distance`，`spawnReason` 保留创建时原因（如 `natural/spawn_egg/breed/spawner/command/plugin/village`）。原有坐标、生命、物品和上下文字段保持兼容。只有成功提交后发完成事件；取消、容量/难度/位置失败没有成功事件，Monitor 只读。
+
+SDK 提供 `Event.MobLifecycle()` 独立快照、`MobSpawningConfig` 和 `Context.SpawnPersistentMob(world, type, x, y, z)`；原 `SpawnMob` 不变，新动作进入同一校验和插件保护入口。`GET /api/server` 暴露当前 `mobSpawning` 配置，`GET /api/events` 发布新增字段。`world-policy` 示例新增默认空的 `blockedNaturalMobTypes`、默认关闭的 `preserveDistantMobs`，并用 Monitor 审计成功生成和清除。
+
+世界存档版本升至 9，新增可选 `spawnReason/persistent/inactiveTicks`。旧动物即使没有持久标记也保留远距保护。第一次覆盖版本 8 或更旧存档前，保留原始文件到 `.json.pre-mob-spawning-vN.bak`；备份失败时不覆盖。实体恢复使用 4096 的存档校验上限，降低运行安全上限不会删除或截断已有实体，只拒绝新增。账号、背包、世界和玩家进度不变。相关验证：`go test -race ./...`、`npm run plugins:build`、`npm run plugins:smoke`。

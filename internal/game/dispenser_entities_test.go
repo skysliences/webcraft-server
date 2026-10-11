@@ -151,7 +151,7 @@ func TestDispenserEntityInvalidAndCapacityHaveNoSideEffects(t *testing.T) {
 		}
 		r, k, state, one, data := dispenserEntityFixture(s, id, 1)
 		if capacity == "mob" {
-			for i := 1; i <= maxWorldMobs; i++ {
+			for i := 1; i <= s.config.MobSpawning.TotalLimit; i++ {
 				r.Mobs[mobNamespace|uint32(i)] = &Mob{ID: mobNamespace | uint32(i), Type: "cow"}
 			}
 		} else if capacity == "projectile" {

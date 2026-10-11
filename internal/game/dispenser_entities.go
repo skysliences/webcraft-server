@@ -39,7 +39,7 @@ func (s *Server) prepareDispenserEntity(r *Room, k uint64, state *MechanicState,
 		context["reason"], context["behavior"], context["type"], context["count"] = "dispenser_spawn_egg", "spawn_egg", typ, 1
 		context["x"], context["y"], context["z"] = float64(dx)+.5, float64(dy), float64(dz)+.5
 		context["target"] = map[string]any{"kind": "position", "x": float64(dx) + .5, "y": float64(dy), "z": float64(dz) + .5}
-		if !s.mobFits(r, typ, float64(dx)+.5, float64(dy), float64(dz)+.5) || !s.mobSolid(r, dx, dy-1, dz) || len(r.Mobs) >= maxWorldMobs {
+		if !s.mobFits(r, typ, float64(dx)+.5, float64(dy), float64(dz)+.5) || !s.mobSolid(r, dx, dy-1, dz) || !s.mobCapacity(r, 1) {
 			return nil, true, false
 		}
 		if !s.allowed(api.ItemSpawnEggUsing, r, nil, context) {
@@ -52,7 +52,7 @@ func (s *Server) prepareDispenserEntity(r *Room, k uint64, state *MechanicState,
 		context["entityId"], context["target"] = mob.ID, mobTarget(mob)
 		data["entityId"], data["behavior"] = mob.ID, "spawn_egg"
 		return &dispenserEntityEffect{Behavior: "spawn_egg", Validate: func() bool {
-			return len(r.Mobs) < maxWorldMobs && r.Mobs[mob.ID] == nil && s.mobFits(r, typ, mob.X, mob.Y, mob.Z) && s.mobSolid(r, dx, dy-1, dz)
+			return s.mobCapacity(r, 1) && r.Mobs[mob.ID] == nil && s.mobFits(r, typ, mob.X, mob.Y, mob.Z) && s.mobSolid(r, dx, dy-1, dz)
 		}, Commit: func() { s.commitMob(r, mob) }, Publish: func() {
 			s.publishPreparedMob(r, nil, mob, "dispenser_spawn_egg", context)
 			s.emit(api.ItemSpawnEggUsed, r, nil, context)
@@ -198,7 +198,7 @@ func (s *Server) hatchEgg(r *Room, pr *Projectile) bool {
 }
 
 func (s *Server) hatchEggCount(r *Room, pr *Projectile, count int) bool {
-	if pr == nil || pr.Type != projEgg || (count != 0 && count != 1 && count != 4) || len(r.Mobs)+count > maxWorldMobs {
+	if pr == nil || pr.Type != projEgg || (count != 0 && count != 1 && count != 4) || !s.mobCapacity(r, count) {
 		return false
 	}
 	data := projectileData(pr, "egg_hatch")

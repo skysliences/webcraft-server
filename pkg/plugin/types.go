@@ -130,39 +130,40 @@ func (e *Event) Number(key string) float64 {
 }
 
 type Action struct {
-	BlockKey          string        `json:"blockKey,omitempty"`
-	AccountID         string        `json:"accountId,omitempty"`
-	Type              string        `json:"type"`
-	WorldID           string        `json:"worldId,omitempty"`
-	PlayerID          uint16        `json:"playerId,omitempty"`
-	Message           string        `json:"message,omitempty"`
-	ItemID            int           `json:"itemId,omitempty"`
-	ItemName          string        `json:"itemName,omitempty"`
-	Count             int           `json:"count,omitempty"`
-	Block             int           `json:"block,omitempty"`
-	X                 float64       `json:"x,omitempty"`
-	Y                 float64       `json:"y,omitempty"`
-	Z                 float64       `json:"z,omitempty"`
-	Amount            float64       `json:"amount,omitempty"`
-	Reason            string        `json:"reason,omitempty"`
-	EntityType        string        `json:"entityType,omitempty"`
-	Ticks             uint64        `json:"ticks,omitempty"`
-	FuseTicks         int           `json:"fuseTicks,omitempty"`
-	Slot              int           `json:"slot,omitempty"`
-	Face              int           `json:"face,omitempty"`
-	Stack             *ItemStack    `json:"stack,omitempty"`
-	Expected          *ItemStack    `json:"expected,omitempty"`
-	ContainerExpected []*ItemStack  `json:"containerExpected,omitempty"`
-	EntityID          uint32        `json:"entityId,omitempty"`
-	Rule              string        `json:"rule,omitempty"`
-	Value             bool          `json:"value,omitempty"`
-	Difficulty        string        `json:"difficulty,omitempty"`
-	GameMode          string        `json:"gamemode,omitempty"`
-	Effect            string        `json:"effect,omitempty"`
-	Duration          int           `json:"duration,omitempty"`
-	Amplifier         int           `json:"amplifier,omitempty"`
-	Rain              bool          `json:"rain,omitempty"`
-	Thunder           bool          `json:"thunder,omitempty"`
+	BlockKey          string              `json:"blockKey,omitempty"`
+	AccountID         string              `json:"accountId,omitempty"`
+	Type              string              `json:"type"`
+	WorldID           string              `json:"worldId,omitempty"`
+	PlayerID          uint16              `json:"playerId,omitempty"`
+	Message           string              `json:"message,omitempty"`
+	ItemID            int                 `json:"itemId,omitempty"`
+	ItemName          string              `json:"itemName,omitempty"`
+	Count             int                 `json:"count,omitempty"`
+	Block             int                 `json:"block,omitempty"`
+	X                 float64             `json:"x,omitempty"`
+	Y                 float64             `json:"y,omitempty"`
+	Z                 float64             `json:"z,omitempty"`
+	Amount            float64             `json:"amount,omitempty"`
+	Reason            string              `json:"reason,omitempty"`
+	EntityType        string              `json:"entityType,omitempty"`
+	Persistent        bool                `json:"persistent,omitempty"`
+	Ticks             uint64              `json:"ticks,omitempty"`
+	FuseTicks         int                 `json:"fuseTicks,omitempty"`
+	Slot              int                 `json:"slot,omitempty"`
+	Face              int                 `json:"face,omitempty"`
+	Stack             *ItemStack          `json:"stack,omitempty"`
+	Expected          *ItemStack          `json:"expected,omitempty"`
+	ContainerExpected []*ItemStack        `json:"containerExpected,omitempty"`
+	EntityID          uint32              `json:"entityId,omitempty"`
+	Rule              string              `json:"rule,omitempty"`
+	Value             bool                `json:"value,omitempty"`
+	Difficulty        string              `json:"difficulty,omitempty"`
+	GameMode          string              `json:"gamemode,omitempty"`
+	Effect            string              `json:"effect,omitempty"`
+	Duration          int                 `json:"duration,omitempty"`
+	Amplifier         int                 `json:"amplifier,omitempty"`
+	Rain              bool                `json:"rain,omitempty"`
+	Thunder           bool                `json:"thunder,omitempty"`
 	Lines             []string            `json:"lines,omitempty"`
 	Blocks            []BlockChange       `json:"blocks,omitempty"`
 	CustomUI          *CustomUIDefinition `json:"customUi,omitempty"`
@@ -361,12 +362,30 @@ func Events() []EventSpec {
 		if name == BlockBreaking || name == BlockBroken || name == BlockPlacing || name == BlockPlaced || name == BlockChanged || name == InventoryChanging || name == InventoryChanged {
 			spec.Fields = []string{"x", "y", "z", "oldBlock", "block", "blockKey", "oldBlockKey", "reason", "actor", "source", "target", "item", "count", "consumed", "slot", "face", "stack", "before", "after"}
 		}
+		if name == EntitySpawning || name == EntitySpawned || name == EntityDespawning || name == EntityDespawned {
+			spec.Fields = mobLifecycleFields()
+		}
 		out = append(out, spec)
 	}
 	out = append(out, identityEvents()...)
 	out = append(out, EventSpec{Name: ServerWorldSelecting, Cancellable: true}, EventSpec{Name: ServerWorldSelected})
 	out = append(out, registryEvents()...)
-	return append(out, extensionEvents()...)
+	out = append(out, extensionEvents()...)
+	out = append(out, automationEvents()...)
+	for i := range out {
+		if out[i].Name == AnimalBreeding || out[i].Name == AnimalBred || out[i].Name == InventoryChanging || out[i].Name == InventoryChanged || out[i].Name == ItemConsuming || out[i].Name == ItemConsumed || out[i].Name == EntitySpawning || out[i].Name == EntitySpawned {
+			fields := append(out[i].Fields, automationEvents()[0].Fields...)
+			out[i].Fields = nil
+			seen := map[string]bool{}
+			for _, field := range fields {
+				if !seen[field] {
+					out[i].Fields = append(out[i].Fields, field)
+					seen[field] = true
+				}
+			}
+		}
+	}
+	return out
 }
 
 // ScoreboardEntry 表示计分板单行条目

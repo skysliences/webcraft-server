@@ -77,10 +77,10 @@ func (s *Server) tickNetherSpawners(r *Room) {
 		// 附近必须有玩家
 		hasPlayer := false
 		for p := range r.Peers {
-			if p.state == nil || p.state.Dead {
+			if !s.spawningPlayer(p) {
 				continue
 			}
-			if math.Hypot(p.state.X-float64(x), p.state.Z-float64(z)) < 16 {
+			if math.Sqrt(math.Pow(p.state.X-float64(x)-.5, 2)+math.Pow(p.state.Y-float64(y)-.5, 2)+math.Pow(p.state.Z-float64(z)-.5, 2)) < 16 {
 				hasPlayer = true
 				break
 			}
@@ -111,7 +111,7 @@ func (s *Server) tickNetherSpawners(r *Room) {
 func (s *Server) tickAdvancedMobs(r *Room) {
 	for _, id := range sortedMobIDs(r) {
 		m := r.Mobs[id]
-		if m == nil || m.Health <= 0 {
+		if m == nil || m.Health <= 0 || !s.mobActive(r, m) {
 			continue
 		}
 		ext := getMobExt(m.ID)

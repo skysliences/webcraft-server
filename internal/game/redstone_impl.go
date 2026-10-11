@@ -114,44 +114,14 @@ func init() {
 
 	// Register room tick hook for Redstone Automata
 	onRoomTick(func(s *Server, r *Room) {
-		rs := getRedstone(r)
+		getRedstone(r)
 		if r.rt().redstoneDirty {
 			s.recalculateWires(r)
 		}
 
 		s.tickRedstoneComponents(r)
 
-		// 5. Hopper item transfer
-		if len(r.Containers) > 0 {
-			for k, c := range r.Containers {
-				if c == nil || c.Kind != "hopper" {
-					continue
-				}
-				x, y, z := coords(k)
-				if s.blockPowered(r, x, y, z) {
-					continue // Locked by redstone
-				}
-				if rs.Hoppers[k] > 0 {
-					rs.Hoppers[k]--
-					continue
-				}
-				rs.Hoppers[k] = 8
-
-				// Suck from top container or drop
-				aboveKey := blockKey(x, y+1, z)
-				if aboveBox := r.Containers[aboveKey]; aboveBox != nil {
-					s.transferOneItem(aboveBox, c)
-				} else {
-					s.suckDropAbove(r, x, y, z, c)
-				}
-
-				// Push to below container
-				belowKey := blockKey(x, y-1, z)
-				if belowBox := r.Containers[belowKey]; belowBox != nil {
-					s.transferOneItem(c, belowBox)
-				}
-			}
-		}
+		s.tickHoppers(r)
 	})
 
 	// Register block update hook for redstone wire and actuator triggers
@@ -244,15 +214,15 @@ func (s *Server) calculateComparatorOutput(r *Room, x, y, z int, cmp *Comparator
 	// 1. Container measurement behind comparator
 	containerKey := blockKey(bx, y, bz)
 	if c := r.Containers[containerKey]; c != nil && len(c.Slots) > 0 {
-		count := 0
+		fullness, occupied := 0.0, false
 		for _, sl := range c.Slots {
 			if sl != nil && sl.Count > 0 {
-				count += sl.Count
+				fullness += math.Min(1, float64(sl.Count)/float64(s.rules.max(sl.ID)))
+				occupied = true
 			}
 		}
-		maxSlots := len(c.Slots) * 64
-		if count > 0 {
-			backPower = int(math.Floor(1.0 + (float64(count)/float64(maxSlots))*14.0))
+		if occupied {
+			backPower = 1 + int(math.Floor(fullness/float64(len(c.Slots))*14))
 		}
 	} else {
 		// Read normal redstone power from back
@@ -413,7 +383,9 @@ func (s *Server) directPowerSource(r *Room, x, y, z, dx, dy, dz int) int {
 			return cmp.OutputPower
 		}
 	}
- if power:=s.mechanicsPower(r,k,dx,dy,dz);power>0{return power}
+	if power := s.mechanicsPower(r, k, dx, dy, dz); power > 0 {
+		return power
+	}
 	return 0
 }
 
@@ -655,57 +627,4 @@ func (s *Server) pressButton(r *Room, x, y, z int, wooden bool) {
 	s.recalculateWires(r)
 	s.updateRedstoneAround(r, x, y, z)
 	soundAt(r, "block.stone_button.click_on", float64(x)+0.5, float64(y)+0.5, float64(z)+0.5, nil)
-}
-
-// Transfer a single item from src container to dst container
-func (s *Server) transferOneItem(src, dst *Container) bool {
-	if src == nil || dst == nil {
-		return false
-	}
-	for i, it := range src.Slots {
-		if it == nil || it.Count <= 0 {
-			continue
-		}
-		for j, d := range dst.Slots {
-			if d == nil {
-				dst.Slots[j] = &Stack{ID: it.ID, Count: 1, Damage: it.Damage, Meta: it.Meta, Ench: it.Ench}
-				it.Count--
-				if it.Count <= 0 {
-					src.Slots[i] = nil
-				}
-				return true
-			} else if d.ID == it.ID && d.Damage == it.Damage && d.Count < 64 {
-				d.Count++
-				it.Count--
-				if it.Count <= 0 {
-					src.Slots[i] = nil
-				}
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// Sucks in nearby floating drop into hopper
-func (s *Server) suckDropAbove(r *Room, x, y, z int, c *Container) {
-	for id, d := range r.Drops {
-		if d == nil {
-			continue
-		}
-		if math.Abs(d.X-float64(x)-0.5) < 0.6 && math.Abs(d.Z-float64(z)-0.5) < 0.6 && d.Y >= float64(y) && d.Y <= float64(y)+1.2 && d.Stack != nil {
-			st := &Stack{ID: d.Stack.ID, Count: d.Stack.Count, Damage: d.Stack.Damage, Meta: d.Stack.Meta}
-			for j, slot := range c.Slots {
-				if slot == nil {
-					c.Slots[j] = st
-					delete(r.Drops, id)
-					return
-				} else if slot.ID == st.ID && slot.Damage == st.Damage && slot.Count+st.Count <= 64 {
-					slot.Count += st.Count
-					delete(r.Drops, id)
-					return
-				}
-			}
-		}
-	}
 }

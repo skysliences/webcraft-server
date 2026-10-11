@@ -64,29 +64,30 @@ type EditAuthor struct {
 	After  int    `json:"after"`
 }
 type Room struct {
-	ID                string
-	Name              string
-	Mode              string
-	Lock              int
-	OwnerHash         string
-	OwnerAccount      string
-	CreatedAt         int64
-	Active            int64
-	Time              uint64
-	Edits             map[uint64]int
-	Players           map[string]*Player
-	Containers        map[uint64]*Container
-	Authors           map[uint64]EditAuthor
-	Peers             map[*Peer]bool
-	Bans              map[string]time.Time
-	Dirty             bool
-	SaveError         string
-	Drops             map[uint32]*ItemDrop
-	NextDropID        uint32
-	Mobs              map[uint32]*Mob
-	NextMobID         uint32
-	saveVersion       int
-	transportMigrated bool
+	ID                 string
+	Name               string
+	Mode               string
+	Lock               int
+	OwnerHash          string
+	OwnerAccount       string
+	CreatedAt          int64
+	Active             int64
+	Time               uint64
+	Edits              map[uint64]int
+	Players            map[string]*Player
+	Containers         map[uint64]*Container
+	Authors            map[uint64]EditAuthor
+	Peers              map[*Peer]bool
+	Bans               map[string]time.Time
+	Dirty              bool
+	SaveError          string
+	Drops              map[uint32]*ItemDrop
+	NextDropID         uint32
+	Mobs               map[uint32]*Mob
+	NextMobID          uint32
+	naturalSpawnOrigin *[3]int
+	saveVersion        int
+	transportMigrated  bool
 	// W is the world width in blocks (multiple of 16, <= 4096). Dim is
 	// "overworld", "nether" or "end"; non-overworld rooms are sub-rooms of
 	// parent and saved as <id>.<dim>.json.
@@ -420,6 +421,13 @@ func (s *Server) saveRoom(r *Room) error {
 	}
 	if r.saveVersion < 8 {
 		if err := backupBeforeMigration(file, "chunks", r.saveVersion); err != nil {
+			return err
+		}
+	}
+	if r.saveVersion < 9 {
+		if err := backupBeforeMigration(file, "mob-spawning", r.saveVersion); err != nil {
+			r.SaveError = err.Error()
+			s.emit(api.WorldSaveFailed, r, nil, map[string]any{"error": err.Error()})
 			return err
 		}
 	}

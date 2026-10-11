@@ -152,6 +152,7 @@ func (s *Server) serverDescriptor(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	data := map[string]any{"service": "mcraft-go", "apiVersion": api.APIVersion, "singleWorld": s.config.SingleWorld, "online": s.online(), "cap": s.config.MaxPlayers, "world": map[string]any{"id": r.ID, "name": r.Name, "mode": r.Mode}, "joinPath": "/r/" + r.ID}
+	data["mobSpawning"] = s.config.MobSpawning
 	if s.identity != nil {
 		data["auth"] = map[string]any{"mode": "central", "issuer": s.identity.issuer, "serverId": s.identity.serverID}
 	}

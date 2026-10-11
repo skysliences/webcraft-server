@@ -90,3 +90,60 @@ func TestChestLockLifecycle(t *testing.T) {
 		t.Fatalf("expected opened window key %v, got %v", chestKey, owner.window.Key)
 	}
 }
+
+func TestSignPlacementOnChestEventMetadata(t *testing.T) {
+	tempDir := t.TempDir()
+	s, _ := testApp(t, tempDir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, owner := createAdvancedTestWorld(s)
+	s.rooms[r.ID] = r
+	owner.name = "Steve"
+	owner.sid = "owner_steve_123"
+
+	// 箱子位于 (15, 61, 25)，下方为 Y=60 的泥土，四周 Y=61 为空气
+	chestX, chestY, chestZ := 15, 61, 25
+	chestKey := blockKey(chestX, chestY, chestZ)
+	s.setBlock(r, chestX, chestY, chestZ, s.id("Chest"), 0)
+	r.Containers[chestKey] = &Container{Kind: "chest", Slots: make(Stacks, 27)}
+
+	// 监听 BlockPlaced 事件
+	var captured *api.Event
+	s.testEventHook = func(e *api.Event) {
+		if e.Name == api.BlockPlaced {
+			captured = e
+		}
+	}
+
+	// 玩家手持 Oak Sign 对箱子东侧 (F=5: +X) 放置木牌
+	owner.state.Inv.Selected = 0
+	owner.state.Inv.Slots[0] = &Stack{ID: 383, Count: 1} // Oak Sign
+	owner.state.X = 15.5
+	owner.state.Y = 61
+	owner.state.Z = 25.5
+
+	handled := s.handleMechanicUse(owner, Message{T: "place", X: chestX, Y: chestY, Z: chestZ, F: 5}, nil, false)
+	if !handled {
+		t.Fatal("expected handleMechanicUse to handle sign placement on chest")
+	}
+
+	if captured == nil {
+		t.Fatal("expected BlockPlaced event to be emitted")
+	}
+
+	// 核心断言：placedOnZ 必须精确为 25，绝不能回退为 0
+	if pz := int(captured.Number("placedOnZ")); pz != 25 {
+		t.Fatalf("expected placedOnZ to be 25, got %d", pz)
+	}
+	if px := int(captured.Number("placedOnX")); px != 15 {
+		t.Fatalf("expected placedOnX to be 15, got %d", px)
+	}
+	if py := int(captured.Number("placedOnY")); py != 61 {
+		t.Fatalf("expected placedOnY to be 61, got %d", py)
+	}
+	if pb := captured.String("placedOnBlockKey"); pb != "Chest" {
+		t.Fatalf("expected placedOnBlockKey to be Chest, got %s", pb)
+	}
+}
+
