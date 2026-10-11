@@ -296,12 +296,27 @@ func (s *Server) respawnPlayer(p *Peer) bool {
 
 // moveToDimension places the player in a dimension (possibly the same one).
 func (s *Server) moveToDimension(p *Peer, target *Room, x, y, z float64, forceSV bool) bool {
+	return s.moveToDimensionWithContext(p, target, x, y, z, forceSV, p, "dimension_transfer")
+}
+
+func (s *Server) moveToDimensionWithContext(p *Peer, target *Room, x, y, z float64, forceSV bool, actor *Peer, reason string) bool {
+	if p == nil || p.room == nil || p.state == nil || target == nil || p.closed || target.root() != p.room.root() {
+		return false
+	}
 	old := p.room
 	if !number(x, target.minCoord(), target.maxCoord()) || !number(y, 1, 127) || !number(z, target.minCoord(), target.maxCoord()) {
 		return false
 	}
-	data := map[string]any{"fromDimension": old.dimName(), "dimension": target.dimName(), "x": x, "y": y, "z": z, "reason": "dimension_transfer"}
+	st := p.state
+	fromX, fromY, fromZ := st.X, st.Y, st.Z
+	data := map[string]any{"fromWorldId": old.ID, "worldId": target.ID, "fromDimension": old.dimName(), "dimension": target.dimName(), "fromX": fromX, "fromY": fromY, "fromZ": fromZ, "x": x, "y": y, "z": z, "reason": reason, "actor": s.commandActor(actor), "target": playerTarget(p), "targetAccountId": p.sid, "stack": itemSnapshot(s.heldItem(p)), "source": s.pluginSource}
+	if actor != nil {
+		data["actorPlayer"] = playerTarget(actor)
+	}
 	if !s.allowed(api.PlayerDimensionChanging, old, p, data) || !s.allowed(api.PlayerTeleporting, old, p, data) {
+		return false
+	}
+	if p.room != old || p.state != st || st.X != fromX || st.Y != fromY || st.Z != fromZ {
 		return false
 	}
 	departure, ok := s.prepareTransportDeparture(p, "transport_dimension_transfer")
@@ -324,13 +339,20 @@ func (s *Server) moveToDimension(p *Peer, target *Room, x, y, z float64, forceSV
 			}
 		}
 		old.Dirty = true
+		if target.dimName() != "end" {
+			p.json(map[string]any{
+				"t":       "bossbar",
+				"name":    "末影龙",
+				"percent": 0,
+				"visible": false,
+			})
+		}
 	}
 	e := p.ext()
 	e.Dim = ""
 	if target.dimName() != "overworld" {
 		e.Dim = target.dimName()
 	}
-	st := p.state
 	st.X, st.Y, st.Z = x, y, z
 	p.peakY = y
 	p.mining = nil
@@ -993,8 +1015,7 @@ func (s *Server) extCommand(p *Peer, name string, parts []string) (handled bool,
 				return true, false
 			}
 			if t.room != p.room {
-				s.moveToDimension(p, t.room, t.state.X, t.state.Y, t.state.Z, true)
-				return true, true
+				return true, !p.state.Dead && s.moveToDimensionWithContext(p, t.room, t.state.X, t.state.Y, t.state.Z, true, p, s.commandReason())
 			}
 			return true, s.teleport(p, t.state.X, t.state.Y, t.state.Z, "command")
 		case 2:
@@ -1004,8 +1025,7 @@ func (s *Server) extCommand(p *Peer, name string, parts []string) (handled bool,
 				return true, false
 			}
 			if a.room != b.room {
-				s.moveToDimension(a, b.room, b.state.X, b.state.Y, b.state.Z, true)
-				return true, true
+				return true, !a.state.Dead && s.moveToDimensionWithContext(a, b.room, b.state.X, b.state.Y, b.state.Z, true, p, s.commandReason())
 			}
 			return true, s.teleport(a, b.state.X, b.state.Y, b.state.Z, "command")
 		case 3, 4:

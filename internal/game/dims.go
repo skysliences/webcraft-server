@@ -406,6 +406,12 @@ func (s *Server) enterEnd(p *Peer) {
 func (s *Server) leaveEnd(p *Peer) {
 	e := p.ext()
 	p.room.ext().Beaten = true
+	p.json(map[string]any{
+		"t":       "bossbar",
+		"name":    "末影龙",
+		"percent": 0,
+		"visible": false,
+	})
 	if !e.SeenCredits {
 		e.EndCredits = true
 		p.json(map[string]any{"t": "credits", "on": 1})
@@ -416,6 +422,12 @@ func (s *Server) leaveEnd(p *Peer) {
 }
 
 func (s *Server) returnFromEnd(p *Peer) {
+	p.json(map[string]any{
+		"t":       "bossbar",
+		"name":    "末影龙",
+		"percent": 0,
+		"visible": false,
+	})
 	root := p.room.root()
 	e := p.ext()
 	sp := s.engine.spawn(root)

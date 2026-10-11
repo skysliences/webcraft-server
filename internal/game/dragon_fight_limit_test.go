@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -114,3 +115,56 @@ func TestDragonLethalDamageDyingSequenceAndEgg(t *testing.T) {
 		}
 	}
 }
+
+func TestPlayerLeavingEndDismissesBossbar(t *testing.T) {
+	s, _ := testApp(t, t.TempDir())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, _, guest := dimensionTestWorld(s)
+	end := s.dimRoom(r, "end")
+	nether := s.dimRoom(r, "nether")
+
+	// 玩家先进入末地
+	if !s.moveToDimension(guest, end, 612.5, 49, 512.5, true) {
+		t.Fatalf("failed to move player to end")
+	}
+
+	// 清空历史收包
+drain:
+	for {
+		select {
+		case <-guest.send:
+		default:
+			break drain
+		}
+	}
+
+	// 传送离开末地到下界
+	ok := s.moveToDimension(guest, nether, 64, 60, 64, true)
+	if !ok {
+		t.Fatalf("failed to move player to nether")
+	}
+
+	// 验证玩家收到 bossbar 隐藏包
+	foundHidePacket := false
+readPackets:
+	for {
+		select {
+		case pkt := <-guest.send:
+			var m map[string]any
+			if err := json.Unmarshal(pkt.body, &m); err == nil {
+				if m["t"] == "bossbar" && m["visible"] == false {
+					foundHidePacket = true
+					break readPackets
+				}
+			}
+		default:
+			break readPackets
+		}
+	}
+	if !foundHidePacket {
+		t.Fatalf("expected player leaving end dimension to receive {t: bossbar, visible: false}")
+	}
+}
+
