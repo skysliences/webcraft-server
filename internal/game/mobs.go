@@ -69,6 +69,10 @@ func validMob(m *Mob) bool {
 	if !ok {
 		return false
 	}
+	minHealth := .01
+	if m.Type == "ender_dragon" {
+		minHealth = 0
+	}
 	maxHealth := spec.Health
 	if m.Type == "ender_dragon" && maxHealth < 200 {
 		maxHealth = 200
@@ -76,7 +80,7 @@ func validMob(m *Mob) bool {
 	if m.Health > maxHealth {
 		m.Health = maxHealth
 	}
-	return m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, .01, maxHealth) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000 && m.LoveTicks >= 0 && m.LoveTicks <= animalLoveTicks && m.BreedCooldown >= 0 && m.BreedCooldown <= animalBreedCooldown && len(m.Breeder) <= 128 && (m.BreedFood == nil || m.BreedFood.Count == 1 && m.BreedFood.ID > 0 && validMeta(m.BreedFood.Meta) && validEnch(m.BreedFood.Ench) && animalFood(m.Type, m.BreedFood.ID))
+	return m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, minHealth, maxHealth) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000 && m.LoveTicks >= 0 && m.LoveTicks <= animalLoveTicks && m.BreedCooldown >= 0 && m.BreedCooldown <= animalBreedCooldown && len(m.Breeder) <= 128 && (m.BreedFood == nil || m.BreedFood.Count == 1 && m.BreedFood.ID > 0 && validMeta(m.BreedFood.Meta) && validEnch(m.BreedFood.Ench) && animalFood(m.Type, m.BreedFood.ID))
 }
 func sortedMobIDs(r *Room) []uint32 {
 	ids := make([]uint32, 0, len(r.Mobs))
@@ -483,6 +487,35 @@ func (s *Server) damageMobSource(r *Room, p *Peer, m *Mob, amount float64, reaso
 	if lethal && !s.allowed(api.EntityDying, r, p, data) {
 		return false
 	}
+
+	// 末影龙专属扣血、Boss血条联动与死亡序列处理
+	if m.Type == "ender_dragon" && r.dimName() == "end" {
+		df := getDragonFight(r)
+		df.Health = max(0, m.Health-amount)
+		m.Health = df.Health
+		r.Dirty = true
+		ctx.HealthAfter = m.Health
+		ctx.AppliedAmount = ctx.HealthBefore - ctx.HealthAfter
+		for k, v := range damageData(ctx, reason) {
+			data[k] = v
+		}
+		data["health"] = m.Health
+		s.mobEvent(r, m, 1, 0)
+		s.emit(api.EntityDamaged, r, p, data)
+
+		if lethal || m.Health <= 0 {
+			df.Health = 0
+			m.Health = 0
+			df.State = "dying"
+			if df.DyingTicks == 0 {
+				df.DyingTicks = 1
+				soundAt(r, "entity.ender_dragon.death", df.X, df.Y, df.Z, nil)
+			}
+			s.emit(api.EntityDead, r, p, data)
+		}
+		return true
+	}
+
 	var drops []*ItemDrop
 	if lethal && r.usesSurvival() {
 		stacks := Stacks{}
@@ -539,6 +572,9 @@ func (s *Server) attackMob(p *Peer, id uint32) {
 	}
 	dx, dz := m.X-p.state.X, m.Z-p.state.Z
 	reach := s.anticheatConfig().AttackReach
+	if m.Type == "ender_dragon" {
+		reach = math.Max(reach, 12.0) // 末影龙体型庞大(12x5)，放宽近战距离至 12 格
+	}
 	if math.Hypot(dx, dz) > reach || math.Abs(m.Y-p.state.Y) > reach*0.75 || !s.lineClear(r, [3]float64{p.state.X, p.state.Y + 1.62, p.state.Z}, [3]float64{m.X, m.Y + mobSpecs[m.Type].Height/2, m.Z}) {
 		return
 	}

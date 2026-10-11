@@ -65,7 +65,7 @@ func init() {
 		Width:   12.0,
 		Height:  5.0,
 		Hostile: true,
-		Drops:   []string{"Dragon Egg"},
+		Drops:   []string{}, // 龙蛋由 buildExitPortal 生成于柱顶，不在空中作为普通掉落物析出
 	}
 
 	mobSpecs["end_crystal"] = mobSpec{
@@ -129,7 +129,6 @@ func init() {
 // Initializes the End fight: generates obsidian pillars with crystals and spawns dragon
 func (s *Server) initDragonFight(r *Room, df *DragonFight) {
 	df.Active = true
-	df.Health = 200
 	df.MaxHealth = 200
 	df.State = "circle"
 	centerX := float64(r.width() / 2)
@@ -138,7 +137,39 @@ func (s *Server) initDragonFight(r *Room, df *DragonFight) {
 	df.Y = 80
 	df.Z = centerZ
 
-	// 10 Obsidian Pillars in circle of radius 42 around center
+	// 1. 严格检查并清理现存末影龙：末地世界中至多仅允许存在一条末影龙（优先保留玩家正在攻击的残血龙）
+	var activeDragon *Mob
+	for _, m := range r.Mobs {
+		if m != nil && m.Type == "ender_dragon" {
+			if activeDragon == nil || m.Health < activeDragon.Health || (m.Health == activeDragon.Health && m.ID < activeDragon.ID) {
+				if activeDragon != nil {
+					delete(r.Mobs, activeDragon.ID)
+					r.Dirty = true
+				}
+				activeDragon = m
+			} else {
+				// 清除多余重复的末影龙
+				delete(r.Mobs, m.ID)
+				r.Dirty = true
+			}
+		}
+	}
+
+	if activeDragon != nil {
+		df.DragonID = activeDragon.ID
+		df.Health = activeDragon.Health
+		df.X = activeDragon.X
+		df.Y = activeDragon.Y
+		df.Z = activeDragon.Z
+	} else if !df.Defeated {
+		dMob, _ := s.spawnMob(r, nil, "ender_dragon", centerX, 80, centerZ, "dragon_spawn")
+		if dMob != nil {
+			df.DragonID = dMob.ID
+			df.Health = dMob.Health
+		}
+	}
+
+	// 2. 检查或生成 10 根黑曜石柱与末影水晶（按柱子坐标去重，每根柱顶至多保留 1 个水晶）
 	df.Crystals = nil
 	for i := 0; i < 10; i++ {
 		ang := float64(i) * (math.Pi * 2 / 10.0)
@@ -146,7 +177,7 @@ func (s *Server) initDragonFight(r *Room, df *DragonFight) {
 		pz := int(centerZ + math.Sin(ang)*42)
 		height := 65 + (i%5)*6 // pillar height 65..90
 
-		// Generate obsidian pillar
+		// 生成黑曜石柱
 		for y := 50; y <= height; y++ {
 			for dx := -2; dx <= 2; dx++ {
 				for dz := -2; dz <= 2; dz++ {
@@ -156,29 +187,47 @@ func (s *Server) initDragonFight(r *Room, df *DragonFight) {
 				}
 			}
 		}
-		// Bedrock top cap
+		// 基岩柱顶
 		s.setBlock(r, px, height, pz, 12, setQuiet) // 12 = Bedrock
 
-		// End crystal mob at top of pillar
-		cMob, _ := s.spawnMob(r, nil, "end_crystal", float64(px)+0.5, float64(height)+1.0, float64(pz)+0.5, "crystal_spawn")
-		var cid uint32
-		if cMob != nil {
-			cid = cMob.ID
-		}
-		df.Crystals = append(df.Crystals, &EndCrystal{
-			ID:    cid,
-			X:     float64(px) + 0.5,
-			Y:     float64(height) + 1.0,
-			Z:     float64(pz) + 0.5,
-			Alive: true,
-		})
-	}
+		topX := float64(px) + 0.5
+		topY := float64(height) + 1.0
+		topZ := float64(pz) + 0.5
 
-	// Spawn ender_dragon mob
-	dMob, _ := s.spawnMob(r, nil, "ender_dragon", centerX, 80, centerZ, "dragon_spawn")
-	if dMob != nil {
-		df.DragonID = dMob.ID
-		df.Health = dMob.Health
+		// 检查该柱顶是否已存在水晶，清理多余重复水晶
+		var pillarCrystal *Mob
+		for _, m := range r.Mobs {
+			if m != nil && m.Type == "end_crystal" {
+				if math.Hypot(m.X-topX, m.Z-topZ) < 2.0 && math.Abs(m.Y-topY) < 3.0 {
+					if pillarCrystal == nil {
+						pillarCrystal = m
+					} else {
+						delete(r.Mobs, m.ID)
+						r.Dirty = true
+					}
+				}
+			}
+		}
+
+		var cid uint32
+		if pillarCrystal != nil {
+			cid = pillarCrystal.ID
+		} else if !df.Defeated {
+			cMob, _ := s.spawnMob(r, nil, "end_crystal", topX, topY, topZ, "crystal_spawn")
+			if cMob != nil {
+				cid = cMob.ID
+			}
+		}
+
+		if cid != 0 {
+			df.Crystals = append(df.Crystals, &EndCrystal{
+				ID:    cid,
+				X:     topX,
+				Y:     topY,
+				Z:     topZ,
+				Alive: true,
+			})
+		}
 	}
 }
 
@@ -187,34 +236,61 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 	centerX := float64(r.width() / 2)
 	centerZ := float64(r.width() / 2)
 
-	// Keep dragon mob synced
+	// 1. 严格保证末地全局至多仅有 1 条末影龙，清除任何多余的幽灵/重复龙
+	var activeDragon *Mob
+	for _, m := range r.Mobs {
+		if m != nil && m.Type == "ender_dragon" {
+			if activeDragon == nil {
+				activeDragon = m
+			} else if df.DragonID != 0 && m.ID == df.DragonID {
+				delete(r.Mobs, activeDragon.ID)
+				r.Dirty = true
+				activeDragon = m
+			} else if df.DragonID == 0 && (m.Health < activeDragon.Health || (m.Health == activeDragon.Health && m.ID < activeDragon.ID)) {
+				delete(r.Mobs, activeDragon.ID)
+				r.Dirty = true
+				activeDragon = m
+			} else {
+				delete(r.Mobs, m.ID)
+				r.Dirty = true
+			}
+		}
+	}
+
+	if df.Defeated {
+		if activeDragon != nil {
+			delete(r.Mobs, activeDragon.ID)
+			r.Dirty = true
+			for p := range r.Peers {
+				s.syncMobsFor(p)
+			}
+		}
+		return
+	}
+
+	if activeDragon != nil {
+		df.DragonID = activeDragon.ID
+	}
+
 	dragonMob := r.Mobs[df.DragonID]
 	if dragonMob != nil {
-		dragonMob.X = df.X
-		dragonMob.Y = df.Y
-		dragonMob.Z = df.Z
-		dragonMob.Yaw = df.Yaw
-		df.Health = dragonMob.Health
-	} else if df.Active && !df.Defeated {
-		// 严防实体脱钩导致虚假自毙：若血量尚未真正归零，在房间中寻找或恢复末影龙实体
-		if df.Health > 0 {
-			found := false
-			for _, m := range r.Mobs {
-				if m != nil && m.Type == "ender_dragon" && m.Health > 0 {
-					df.DragonID = m.ID
-					df.Health = m.Health
-					dragonMob = m
-					found = true
-					break
-				}
-			}
-			if !found {
-				newMob, _ := s.spawnMob(r, nil, "ender_dragon", df.X, df.Y, df.Z, "dragon_respawn")
-				if newMob != nil {
-					newMob.Health = df.Health
-					df.DragonID = newMob.ID
-					dragonMob = newMob
-				}
+		if df.Health <= 0 || df.DyingTicks > 0 {
+			dragonMob.Health = 0
+		} else {
+			dragonMob.X = df.X
+			dragonMob.Y = df.Y
+			dragonMob.Z = df.Z
+			dragonMob.Yaw = df.Yaw
+			df.Health = dragonMob.Health
+		}
+	} else if df.Active && !df.Defeated && df.Health > 0 && df.DyingTicks == 0 {
+		// 严防实体脱钩：若血量尚未真正归零且未在死亡阶段，仅在没有任何末影龙时生成一条
+		if activeDragon == nil {
+			newMob, _ := s.spawnMob(r, nil, "ender_dragon", df.X, df.Y, df.Z, "dragon_respawn")
+			if newMob != nil {
+				newMob.Health = df.Health
+				df.DragonID = newMob.ID
+				dragonMob = newMob
 			}
 		}
 	}
@@ -225,15 +301,28 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 			"t":       "bossbar",
 			"name":    "末影龙",
 			"percent": math.Max(0, df.Health/df.MaxHealth),
-			"visible": df.Health > 0,
+			"visible": !df.Defeated,
 		})
 	}
 
-	// Dying sequence
-	if df.Health <= 0 {
+	// 2. Dying sequence (死亡动画流：120 ticks = 6 秒)
+	if df.Health <= 0 || df.DyingTicks > 0 {
+		df.Health = 0
 		df.DyingTicks++
 		if df.DyingTicks == 1 {
 			soundAt(r, "entity.ender_dragon.death", df.X, df.Y, df.Z, nil)
+		}
+		// 死亡时缓缓盘旋升向中央
+		df.X += (centerX - df.X) * 0.05
+		df.Y += (75.0 - df.Y) * 0.05
+		df.Z += (centerZ - df.Z) * 0.05
+		df.Yaw = math.Remainder(df.Yaw+0.05, math.Pi*2)
+		if dragonMob != nil {
+			dragonMob.X = df.X
+			dragonMob.Y = df.Y
+			dragonMob.Z = df.Z
+			dragonMob.Yaw = df.Yaw
+			dragonMob.Health = 0
 		}
 		// Spawn massive XP shower
 		if df.DyingTicks%5 == 0 && df.DyingTicks <= 100 {
@@ -241,6 +330,12 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 		}
 		if df.DyingTicks >= 120 {
 			df.Defeated = true
+			if dragonMob != nil {
+				delete(r.Mobs, dragonMob.ID)
+				for peer := range r.Peers {
+					s.syncMobsFor(peer)
+				}
+			}
 			// Activate Exit Portal and place Dragon Egg (210)
 			portal := [3]int{int(centerX), 49, int(centerZ)}
 			s.buildExitPortal(r, portal, true)
