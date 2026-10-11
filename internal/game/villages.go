@@ -257,15 +257,15 @@ func (s *Server) maybeGenerateVillage(r *Room, c ChunkCoord, set func(x, y, z in
 	// 只有活动房间才注册宝箱内容和排队生成村民，避免 worker 生成时 nil panic
 	if r.Containers != nil {
 		chestKey := blockKey(bx-1, baseY+1, bz+1)
+		chestSlots := make(Stacks, 27)
+		chestSlots[0] = &Stack{ID: 315, Count: 3} // Iron Ingot
+		chestSlots[1] = &Stack{ID: 339, Count: 8} // Bread
+		chestSlots[2] = &Stack{ID: 38, Count: 2}  // Emerald
+		chestSlots[3] = &Stack{ID: 337, Count: 4} // Apples
+		chestSlots[4] = &Stack{ID: 24, Count: 3}  // Obsidian
 		r.Containers[chestKey] = &Container{
-			Kind: "chest",
-			Slots: []*Stack{
-				{ID: 315, Count: 3}, // Iron Ingot
-				{ID: 339, Count: 8}, // Bread
-				{ID: 38, Count: 2},  // Emerald
-				{ID: 337, Count: 4}, // Apples
-				{ID: 24, Count: 3},  // Obsidian
-			},
+			Kind:  "chest",
+			Slots: chestSlots,
 		}
 
 		s.pendingVillageSpawns = append(s.pendingVillageSpawns,

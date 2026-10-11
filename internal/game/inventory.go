@@ -425,19 +425,58 @@ func (s *Server) openWindow(p *Peer, key uint64, kind string, q int) {
 	if kind == "ender" {
 		e := p.ext()
 		if len(e.EnderChest) != 27 {
-			e.EnderChest = make(Stacks, 27)
+			newEnder := make(Stacks, 27)
+			copy(newEnder, e.EnderChest)
+			e.EnderChest = newEnder
 		}
 		slots = e.EnderChest
 		kind = "chest"
 	} else if kind != "table" && !transientWindow(kind) {
+		if p.room.Containers == nil {
+			p.room.Containers = map[uint64]*Container{}
+		}
 		c := p.room.Containers[key]
 		if c == nil {
 			c = &Container{Kind: kind, Slots: slots}
 			p.room.Containers[key] = c
-		}
-		if c.Kind != kind || len(c.Slots) != size {
-			p.sys("容器存档格式错误。")
-			return
+			p.room.Dirty = true
+		} else {
+			// 自适应规范化容错：当 Kind 不匹配或 Slots 长度不符合窗口尺寸时，自动平滑升级规整，绝不中断玩家交互
+			changed := false
+			if c.Kind != kind {
+				c.Kind = kind
+				changed = true
+			}
+			if len(c.Slots) != size {
+				newSlots := make(Stacks, size)
+				copy(newSlots, c.Slots)
+				if len(c.Slots) > size {
+					for _, extra := range c.Slots[size:] {
+						if extra != nil && extra.Count > 0 {
+							placed := false
+							for i := 0; i < size; i++ {
+								if newSlots[i] == nil {
+									newSlots[i] = extra
+									placed = true
+									break
+								}
+							}
+							if !placed {
+								if prepared, err := s.prepareDropsWithContext(p.room, p, Stacks{extra}, float64(x)+0.5, float64(y)+1.0, float64(z)+0.5, "container_overflow", nil, false); err == nil {
+									for _, d := range prepared {
+										p.room.Drops[d.ID] = d
+									}
+								}
+							}
+						}
+					}
+				}
+				c.Slots = newSlots
+				changed = true
+			}
+			if changed {
+				p.room.Dirty = true
+			}
 		}
 		slots = c.Slots
 	}
