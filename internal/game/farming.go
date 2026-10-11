@@ -172,42 +172,13 @@ func init() {
 		return false
 	})
 
-	// 2. 作物附魔采集与常规掉落 hook (farming_drops)
-	// 成熟小麦掉小麦+种子，胡萝卜掉1-4胡萝卜，马铃薯掉1-4马铃薯(偶有毒马铃薯)
+	// 2. 作物收获插件事件 hook
 	onBreak(func(s *Server, p *Peer, x, y, z, old int) {
 		if p == nil || p.room.Mode != "survival" {
 			return
 		}
-		var drops Stacks
-		switch old {
-		case blkWheatMax:
-			drops = append(drops, stack(itemWheat, 1, 0), stack(itemWheatSeeds, 1+s.rng.Intn(3), 0))
-		case blkCarrotMax:
-			drops = append(drops, stack(itemCarrot, 1+s.rng.Intn(4), 0))
-		case blkPotatoMax:
-			drops = append(drops, stack(itemPotato, 1+s.rng.Intn(4), 0))
-			if s.rng.Intn(50) == 0 {
-				drops = append(drops, stack(itemPoisonPotato, 1, 0))
-			}
-		default:
-			if isCrop(old) {
-				// 未成熟被破坏，掉原种子
-				switch {
-				case old >= blkWheatMin && old < blkWheatMax:
-					drops = append(drops, stack(itemWheatSeeds, 1, 0))
-				case old >= blkCarrotMin && old < blkCarrotMax:
-					drops = append(drops, stack(itemCarrot, 1, 0))
-				case (old >= blkPotatoMin && old <= blkPotatoMid):
-					drops = append(drops, stack(itemPotato, 1, 0))
-				}
-			}
-		}
-		if len(drops) > 0 {
-			prepared, err := s.prepareDrops(p.room, p, drops, float64(x)+.5, float64(y)+.3, float64(z)+.5, "crop_harvest")
-			if err == nil {
-				s.publishDrops(p.room, p, prepared, "crop_harvest")
-				s.emit(api.CropHarvested, p.room, p, map[string]any{"x": x, "y": y, "z": z, "block": old})
-			}
+		if isCrop(old) {
+			s.emit(api.CropHarvested, p.room, p, map[string]any{"x": x, "y": y, "z": z, "block": old})
 		}
 	})
 
@@ -236,11 +207,16 @@ func init() {
 			return
 		}
 
-		// 作物下方检测：若下方不再是耕地，作物掉落
+		// 作物下方检测：若下方不再是耕地，作物脱落并掉落对应物品
 		if isCrop(b) {
 			below := s.block(r, x, y-1, z)
 			if !isFarmland(below) {
 				s.setBlock(r, x, y, z, 0, 0)
+				if drops := s.drops(b, 0); len(drops) > 0 {
+					if prepared, err := s.prepareDrops(r, nil, drops, float64(x)+.5, float64(y)+.3, float64(z)+.5, "crop_break"); err == nil {
+						s.publishDrops(r, nil, prepared, "crop_break")
+					}
+				}
 			}
 		}
 	})

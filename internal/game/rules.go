@@ -235,8 +235,47 @@ func (s *Server) drops(block, held int) Stacks {
 		if s.rng.Intn(10) == 0 {
 			id = s.rules.byName["Flint"]
 		}
+	case "Wheat Crops":
+		seeds := s.rules.byName["Wheat Seeds"]
+		if seeds == 0 {
+			seeds = itemWheatSeeds
+		}
+		if block == blkWheatMax || strings.Contains(s.rules.Names[block], "Mature") {
+			wheat := s.rules.byName["Wheat"]
+			if wheat == 0 {
+				wheat = itemWheat
+			}
+			return Stacks{stack(wheat, 1, 0), stack(seeds, 1+s.rng.Intn(3), 0)}
+		}
+		return Stacks{stack(seeds, 1, 0)}
+	case "Carrots":
+		carrot := s.rules.byName["Carrot"]
+		if carrot == 0 {
+			carrot = itemCarrot
+		}
+		if block == blkCarrotMax || strings.Contains(s.rules.Names[block], "Mature") {
+			return Stacks{stack(carrot, 1+s.rng.Intn(4), 0)}
+		}
+		return Stacks{stack(carrot, 1, 0)}
+	case "Potatoes":
+		potato := s.rules.byName["Potato"]
+		if potato == 0 {
+			potato = itemPotato
+		}
+		if block == blkPotatoMax || strings.Contains(s.rules.Names[block], "Mature") {
+			drops := Stacks{stack(potato, 1+s.rng.Intn(4), 0)}
+			if s.rng.Intn(50) == 0 {
+				poison := s.rules.byName["Poisonous Potato"]
+				if poison == 0 {
+					poison = itemPoisonPotato
+				}
+				drops = append(drops, stack(poison, 1, 0))
+			}
+			return drops
+		}
+		return Stacks{stack(potato, 1, 0)}
 	}
-	if id == 0 || count == 0 {
+	if id == 0 || count == 0 || s.rules.max(id) == 0 {
 		return nil
 	}
 	return Stacks{stack(id, count, 0)}
