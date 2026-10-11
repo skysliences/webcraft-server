@@ -94,6 +94,7 @@ func (s *Server) advancedMobWalk(r *Room, m *Mob, targetX, targetY, targetZ floa
 			// 前方有墙，垂直向上攀爬
 			if curY+1 < 127 && s.mobFits(r, m.Type, m.X, m.Y+0.2, m.Z) {
 				m.Y += 0.2
+				m.Yaw = math.Atan2(-vx, -vz)
 				return true
 			}
 		}
@@ -105,12 +106,20 @@ func (s *Server) advancedMobWalk(r *Room, m *Mob, targetX, targetY, targetZ floa
 		if candY < 1 || candY >= 127 {
 			continue
 		}
+		// 如果是向上走台阶 (dy > 0)，不能把树叶当成台阶往上爬
+		candBlock := s.block(r, int(math.Floor(nextX)), candY-1, int(math.Floor(nextZ)))
+		if dy > 0 && s.rules.Kinds[candBlock] == 2 {
+			continue
+		}
 		// 下方必须是坚实方块，且不能是岩浆或火
 		if s.mobSolid(r, int(math.Floor(nextX)), candY-1, int(math.Floor(nextZ))) &&
 			!s.isHazard(r, int(math.Floor(nextX)), candY-1, int(math.Floor(nextZ))) {
 			// 且生物身位有足够空间
 			if s.mobFits(r, m.Type, nextX, float64(candY), nextZ) {
 				m.X, m.Y, m.Z = nextX, float64(candY), nextZ
+				if m.Type != "skeleton" {
+					m.Yaw = math.Atan2(-vx, -vz)
+				}
 				return true
 			}
 		}
@@ -124,6 +133,13 @@ func (s *Server) advancedMobWalk(r *Room, m *Mob, targetX, targetY, targetZ floa
 		altX, altZ := m.X+altVx, m.Z+altVz
 		for _, dy := range []int{0, 1, -1} {
 			candY := curY + dy
+			if candY < 1 || candY >= 127 {
+				continue
+			}
+			altBlock := s.block(r, int(math.Floor(altX)), candY-1, int(math.Floor(altZ)))
+			if dy > 0 && s.rules.Kinds[altBlock] == 2 {
+				continue
+			}
 			if s.mobSolid(r, int(math.Floor(altX)), candY-1, int(math.Floor(altZ))) &&
 				!s.isHazard(r, int(math.Floor(altX)), candY-1, int(math.Floor(altZ))) &&
 				s.mobFits(r, m.Type, altX, float64(candY), altZ) {
@@ -288,6 +304,7 @@ func init() {
 						// 距离太远瞬移到主人身边
 						m.X, m.Y, m.Z = owner.state.X, owner.state.Y, owner.state.Z
 					} else if d > 2.5 {
+						m.Yaw = math.Atan2(-(owner.state.X - m.X), -(owner.state.Z - m.Z))
 						s.advancedMobWalk(r, m, owner.state.X, owner.state.Y, owner.state.Z, 0.22)
 					}
 				}
@@ -362,6 +379,7 @@ func init() {
 					}
 				}
 				if ext.FuseTicks == 0 {
+					m.Yaw = math.Atan2(-(target.state.X - m.X), -(target.state.Z - m.Z))
 					s.advancedMobWalk(r, m, target.state.X, target.state.Y, target.state.Z, 0.16)
 				}
 				continue
@@ -397,6 +415,7 @@ func init() {
 
 			// E. 蜘蛛爬墙寻路
 			if m.Type == "spider" {
+				m.Yaw = math.Atan2(-(target.state.X - m.X), -(target.state.Z - m.Z))
 				s.advancedMobWalk(r, m, target.state.X, target.state.Y, target.state.Z, 0.20)
 			}
 		}

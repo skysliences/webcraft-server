@@ -60,7 +60,7 @@ func init() {
 	// Register ender_dragon and end_crystal mob specs
 	mobSpecs["ender_dragon"] = mobSpec{
 		Kind:    23,
-		Health:  100,
+		Health:  200,
 		Speed:   2.5,
 		Width:   12.0,
 		Height:  5.0,
@@ -282,7 +282,7 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 	df.StateTicks++
 	switch df.State {
 	case "circle":
-		df.Angle += 0.02
+		df.Angle = math.Remainder(df.Angle+0.02, math.Pi*2)
 		targetX := centerX + math.Cos(df.Angle)*45
 		targetZ := centerZ + math.Sin(df.Angle)*45
 		targetY := 75.0 + math.Sin(df.Angle*2)*8
@@ -290,7 +290,7 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 		df.X += (targetX - df.X) * 0.05
 		df.Y += (targetY - df.Y) * 0.05
 		df.Z += (targetZ - df.Z) * 0.05
-		df.Yaw = df.Angle + math.Pi/2
+		df.Yaw = math.Remainder(df.Angle+math.Pi/2, math.Pi*2)
 
 		// Periodically transition to dive charge (every 300 ticks)
 		if df.StateTicks > 300 {
@@ -314,9 +314,11 @@ func (s *Server) tickDragonFight(r *Room, df *DragonFight) {
 		}
 		if closest != nil {
 			tx, ty, tz := closest.state.X, closest.state.Y+2, closest.state.Z
-			df.X += (tx - df.X) * 0.08
+			dx, dz := tx-df.X, tz-df.Z
+			df.X += dx * 0.08
 			df.Y += (ty - df.Y) * 0.08
-			df.Z += (tz - df.Z) * 0.08
+			df.Z += dz * 0.08
+			df.Yaw = math.Remainder(math.Atan2(-dx, -dz), math.Pi*2)
 
 			// Hit player if within 4 blocks
 			if minD < 4 && math.Abs(df.Y-closest.state.Y) < 4 {

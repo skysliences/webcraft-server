@@ -62,8 +62,21 @@ func validMob(m *Mob) bool {
 	if len(m.SpawnReason) > 64 || m.InactiveTicks < 0 || m.InactiveTicks > 1200000 {
 		return false
 	}
+	if !math.IsNaN(m.Yaw) && !math.IsInf(m.Yaw, 0) {
+		m.Yaw = math.Remainder(m.Yaw, math.Pi*2)
+	}
 	spec, ok := mobSpecs[m.Type]
-	return ok && m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, .01, spec.Health) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000 && m.LoveTicks >= 0 && m.LoveTicks <= animalLoveTicks && m.BreedCooldown >= 0 && m.BreedCooldown <= animalBreedCooldown && len(m.Breeder) <= 128 && (m.BreedFood == nil || m.BreedFood.Count == 1 && m.BreedFood.ID > 0 && validMeta(m.BreedFood.Meta) && validEnch(m.BreedFood.Ench) && animalFood(m.Type, m.BreedFood.ID))
+	if !ok {
+		return false
+	}
+	maxHealth := spec.Health
+	if m.Type == "ender_dragon" && maxHealth < 200 {
+		maxHealth = 200
+	}
+	if m.Health > maxHealth {
+		m.Health = maxHealth
+	}
+	return m.ID&mobNamespace != 0 && m.ID != mobNamespace && number(m.X, -worldBorder+1, worldBorder-1) && number(m.Z, -worldBorder+1, worldBorder-1) && number(m.Y, 1, 126) && number(m.Yaw, -math.Pi*2, math.Pi*2) && number(m.Health, .01, maxHealth) && m.Flags & ^byte(15) == 0 && m.GrowthTicks >= 0 && m.GrowthTicks <= 24000 && m.LoveTicks >= 0 && m.LoveTicks <= animalLoveTicks && m.BreedCooldown >= 0 && m.BreedCooldown <= animalBreedCooldown && len(m.Breeder) <= 128 && (m.BreedFood == nil || m.BreedFood.Count == 1 && m.BreedFood.ID > 0 && validMeta(m.BreedFood.Meta) && validEnch(m.BreedFood.Ench) && animalFood(m.Type, m.BreedFood.ID))
 }
 func sortedMobIDs(r *Room) []uint32 {
 	ids := make([]uint32, 0, len(r.Mobs))
@@ -545,9 +558,14 @@ func (s *Server) attackMob(p *Peer, id uint32) {
 }
 func (s *Server) walkMob(r *Room, m *Mob, dx, dz float64) bool {
 	x, z := m.X+dx, m.Z+dz
+	bx, bz := int(math.Floor(x)), int(math.Floor(z))
 	base := int(math.Round(m.Y))
 	for _, y := range []int{base, base + 1, base - 1} {
-		if s.mobSolid(r, int(x), y-1, int(z)) && s.mobFits(r, m.Type, x, float64(y), z) {
+		stepBlock := s.block(r, bx, y-1, bz)
+		if y > base && s.rules.Kinds[stepBlock] == 2 {
+			continue // 禁止把树叶当成台阶爬到树顶悬空
+		}
+		if s.mobSolid(r, bx, y-1, bz) && s.mobFits(r, m.Type, x, float64(y), z) {
 			m.X, m.Y, m.Z = x, float64(y), z
 			return true
 		}
@@ -572,13 +590,14 @@ func (s *Server) mobsTick(r *Room) {
 		// A removed floor cannot leave an animal suspended in the air.
 		// 飞行生物、Boss 和固定实体免除地面坠落检测
 		isAirborneOrBoss := m.Type == "ender_dragon" || m.Type == "end_crystal" || m.Type == "wither" || m.Type == "blaze" || m.Type == "shulker"
-		if !isAirborneOrBoss && !s.mobSolid(r, int(m.X), int(math.Floor(m.Y))-1, int(m.Z)) {
+		mx, mz := int(math.Floor(m.X)), int(math.Floor(m.Z))
+		if !isAirborneOrBoss && !s.mobSolid(r, mx, int(math.Floor(m.Y))-1, mz) {
 			fallen := false
 			for y := int(math.Floor(m.Y)) - 1; y >= max(1, int(m.Y)-4); y-- {
 				if s.mobFits(r, m.Type, m.X, float64(y), m.Z) {
 					m.Y = float64(y)
 					fallen = true
-					if s.mobSolid(r, int(m.X), y-1, int(m.Z)) {
+					if s.mobSolid(r, mx, y-1, mz) {
 						break
 					}
 				} else {
@@ -597,7 +616,7 @@ func (s *Server) mobsTick(r *Room) {
 		s.growMob(r, m)
 		if m.Type == "zombie" && !isNight(r.Time) && s.tick%10 == 0 {
 			m.burnMS = 0
-			if s.skyOpen(r, int(m.X), int(m.Y+spec.Height), int(m.Z)) {
+			if s.skyOpen(r, mx, int(m.Y+spec.Height), mz) {
 				m.burnMS = 1000
 			}
 		}
