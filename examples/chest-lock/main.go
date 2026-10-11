@@ -352,20 +352,19 @@ func main() {
 			}
 		}
 
-		// 如果允许 OP 旁路且当前玩家是管理员
-		if cfg.AllowOpBypass && e.Player != nil && e.Player.Operator {
-			c.Message(e, "§7[箱子锁] 管理员权限旁路开箱。")
-			return nil
-		}
-
-		// 拦截常规开箱动作
+		// 拦截常规开箱动作（任何玩家包括房主/主人/管理员每次打开均需输入密码）
 		e.Cancel("该箱子受密码保护，请输入密码。")
+
+		prompt := fmt.Sprintf("这是玩家 %s 的私有加密箱子。请输入访问密码以解锁：", record.OwnerName)
+		if e.Player != nil && (e.Player.AccountID == record.OwnerUID || e.Player.Name == record.OwnerName) {
+			prompt = "这是你的加密箱子。每次打开都需要验证密码，请输入访问密码以解锁："
+		}
 
 		// 弹出输入密码解锁 UI
 		c.OpenCustomUIFor(e, api.CustomUIDefinition{
 			ID:      "chest_lock:unlock",
 			Title:   "输入箱子密码",
-			Content: fmt.Sprintf("这是玩家 %s 的私有加密箱子。请输入访问密码以解锁：", record.OwnerName),
+			Content: prompt,
 			Inputs: []api.CustomUIInput{
 				{
 					ID:          "password",
