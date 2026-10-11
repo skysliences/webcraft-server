@@ -35,7 +35,7 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 	kind := mechanicKinds[target]
 	held, it := s.heldStack(p)
 	placed := s.mechanicPlacementID(held, it)
-	interactive := kind == "composter" || kind == "cauldron" || kind == "sign" || kind == "jukebox" || kind == "daylight_detector" || kind == "dispenser" || kind == "dropper"
+	interactive := kind == "hopper" || kind == "composter" || kind == "cauldron" || kind == "sign" || kind == "jukebox" || kind == "daylight_detector" || kind == "dispenser" || kind == "dropper"
 	if placed == 0 && (!interactive || p.flags&1 != 0) {
 		return false
 	}
@@ -46,7 +46,7 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 		k := blockKey(m.X, m.Y, m.Z)
 		s.trackMechanicBlock(r, k, target)
 		switch kind {
-		case "dispenser", "dropper":
+		case "dispenser", "dropper", "hopper":
 			s.openWindow(p, k, kind, m.Q)
 		case "sign":
 			data := s.mechanicData(r, p, k, mechanicSnapshot(r, k), "sign_edit_open")
@@ -85,6 +85,12 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 	var rail *RailState
 	if next != nil {
 		next.Facing = pistonFacingFromPlayer(p)
+		if next.Kind == "hopper" {
+			next.Facing = 0
+			if face >= 2 {
+				next.Facing = face ^ 1
+			}
+		}
 		next.SupportFace = face
 		if next.Kind == "observer" {
 			next.Observed = s.observerObservation(r, k, next.Facing)
@@ -146,9 +152,17 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 	data["face"] = face
 	data["placedOnX"] = m.X
 	data["placedOnY"] = m.Y
-	data["placedOnZ"] = m.Z
 	data["placedOnBlock"] = target
-	data["placedOnBlockKey"] = s.registryBlockKey(target)
+	placedOnName := ""
+	if target >= 0 && target < len(s.rules.Names) {
+		placedOnName = baseName(s.rules.Names[target])
+	}
+	placedOnKey := s.registryBlockKey(target)
+	if placedOnKey == "" {
+		placedOnKey = placedOnName
+	}
+	data["placedOnBlockName"] = placedOnName
+	data["placedOnBlockKey"] = placedOnKey
 	if !s.allowed(api.BlockPlacing, r, p, data) || !s.mechanicBlockBefore(r, p, data) || count > 0 && !s.allowed(api.InventoryChanging, r, p, data) {
 		return true
 	}

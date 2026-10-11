@@ -2,6 +2,7 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	api "mcraft/backend/pkg/plugin"
 )
@@ -215,6 +216,61 @@ func TestSignPlacementOnChestDirect(t *testing.T) {
 	}
 	if mech.SupportFace != 3 {
 		t.Fatalf("expected sign support face 3, got %d", mech.SupportFace)
+	}
+}
+
+func TestSignPlacementOnChestTop(t *testing.T) {
+	tempDir := t.TempDir()
+	s, _ := testApp(t, tempDir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, p := createAdvancedTestWorld(s)
+	s.rooms[r.ID] = r
+
+	chestID := s.id("Chest")
+	signItemID := 383
+	chestX, chestY, chestZ := 35, 60, 35
+	s.setBlock(r, chestX, chestY, chestZ, chestID, 0)
+	s.setBlock(r, chestX, chestY+1, chestZ, 0, 0) // 箱子上方为空气
+
+	// 玩家手持木牌 (选中的快捷栏槽位放 2 个木牌)
+	p.state.Inv.Slots[p.state.Inv.Selected] = customStack(signItemID, 2)
+
+	// 模拟玩家对箱子顶面 (F = 1, Y+1) 右键放置木牌
+	m := Message{T: "place", X: chestX, Y: chestY, Z: chestZ, F: 1}
+	s.survivalMessage(p, m)
+
+	// 1. 验证没有错误打开箱子窗口
+	if p.window != nil {
+		t.Fatalf("holding sign and right clicking chest top must NOT open window, but window was opened: %+v", p.window)
+	}
+
+	// 2. 验证木牌成功放置在箱子顶面 (35, 61, 35)
+	signX, signY, signZ := chestX, chestY+1, chestZ
+	placedBlock := s.block(r, signX, signY, signZ)
+	if placedBlock != blkSign {
+		t.Fatalf("expected sign block %d on top of chest at (%d,%d,%d), got %d", blkSign, signX, signY, signZ, placedBlock)
+	}
+
+	// 3. 验证木牌数据正确保存，支撑面为 1
+	signKey := blockKey(signX, signY, signZ)
+	mech := mechanicSnapshot(r, signKey)
+	if mech == nil {
+		t.Fatalf("expected mechanic state for placed sign at key %v", signKey)
+	}
+	if mech.SupportFace != 1 {
+		t.Fatalf("expected sign support face 1, got %d", mech.SupportFace)
+	}
+
+	// 4. 验证破坏下方箱子时，上方的木牌自动脱落
+	s.survivalMessage(p, Message{T: "dig", S: 0, X: chestX, Y: chestY, Z: chestZ, F: 1})
+	if p.mining != nil {
+		p.mining.At = time.Now().Add(-time.Minute)
+	}
+	s.survivalMessage(p, Message{T: "dig", S: 2, X: chestX, Y: chestY, Z: chestZ, F: 1})
+	if topBlock := s.block(r, signX, signY, signZ); topBlock != 0 {
+		t.Fatalf("expected sign to drop when chest beneath is destroyed, but block is %d", topBlock)
 	}
 }
 

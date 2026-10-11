@@ -51,6 +51,28 @@ func toFloat(v any) float64 {
 	}
 }
 
+// Automated extraction/insertion has no authenticated human to unlock a box.
+// Restrict adjacent checks to chest endpoints, protecting either half of a
+// double chest without locking unrelated nearby hopper/furnace inventories.
+func lockedAutomation(e *api.Event, locks map[string]*LockRecord) bool {
+	if e == nil || e.World == nil {
+		return false
+	}
+	for _, field := range []string{"origin", "target"} {
+		v, ok := e.Data[field].(map[string]any)
+		if !ok || v["kind"] != "container" || v["type"] != "chest" {
+			continue
+		}
+		x, y, z := int(toFloat(v["x"])), int(toFloat(v["y"])), int(toFloat(v["z"]))
+		for _, d := range [][2]int{{0, 0}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+			if record := locks[posKey(x+d[0], y, z+d[1])]; record != nil && (record.WorldID == "" || record.WorldID == e.World.ID) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func main() {
 	p := api.New()
 
@@ -115,7 +137,9 @@ func main() {
 
 		placedOnKey := e.String("placedOnBlockKey")
 		placedOnID := int(e.Number("placedOnBlock"))
-		if placedOnKey != "Chest" && placedOnID != 54 {
+		placedOnName := e.String("placedOnBlockName")
+		isChest := placedOnKey == "Chest" || placedOnName == "Chest" || placedOnID == 140 || placedOnID == 54 || strings.Contains(strings.ToLower(placedOnKey), "chest")
+		if !isChest {
 			return nil
 		}
 
@@ -284,6 +308,18 @@ func main() {
 
 		return nil
 	})
+
+	for _, name := range []string{api.InventoryMoving, api.InventoryPickingUp} {
+		p.On(name, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+			mu.RLock()
+			locked := lockedAutomation(e, chestLocks)
+			mu.RUnlock()
+			if locked {
+				e.Cancel("chest_lock.automation_denied")
+			}
+			return nil
+		})
+	}
 
 	// 3. 打开箱子时拦截并弹出密码输入 UI
 	p.On(api.InventoryOpening, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
