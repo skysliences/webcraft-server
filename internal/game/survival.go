@@ -543,26 +543,26 @@ func (s *Server) life(p *Peer) {
 	}
 	x, y, z := int(math.Floor(st.X)), int(math.Floor(st.Y)), int(math.Floor(st.Z))
 	feet := s.block(p.room, x, y, z)
-	eyeY := st.Y + 1.62
-	eyeBlockY := int(math.Floor(eyeY))
-	eyes := s.block(p.room, x, eyeBlockY, z)
-	eyeInWater := isWater(eyes)
-	if eyeInWater {
-		aboveWater := isWater(s.block(p.room, x, eyeBlockY+1, z))
-		surfaceY := float64(eyeBlockY) + 0.875
+	headY := st.Y + 1.8
+	headBlockY := int(math.Floor(headY))
+	headBlock := s.block(p.room, x, headBlockY, z)
+	headInWater := isWater(headBlock)
+	if headInWater {
+		aboveWater := isWater(s.block(p.room, x, headBlockY+1, z))
+		surfaceY := float64(headBlockY) + 0.875
 		if aboveWater {
-			surfaceY = float64(eyeBlockY) + 1.0
+			surfaceY = float64(headBlockY) + 1.0
 		}
-		if eyeY >= surfaceY {
-			eyeInWater = false
+		if headY >= surfaceY {
+			headInWater = false
 		}
 	}
-	if (isLava(feet) || isLava(eyes)) && !s.hasEffect(p, "fire_resistance") {
+	if (isLava(feet) || isLava(headBlock)) && !s.hasEffect(p, "fire_resistance") {
 		s.damage(p, 4, "掉入了熔岩。")
 		s.ignite(p, 300)
 	}
 	oldAir := p.air
-	if eyeInWater && !s.hasEffect(p, "water_breathing") && s.gameMode(p) != "creative" && s.gameMode(p) != "spectator" {
+	if headInWater && !s.hasEffect(p, "water_breathing") && s.gameMode(p) != "creative" && s.gameMode(p) != "spectator" {
 		p.air = max(0, p.air-20)
 		if p.air == 0 {
 			s.damage(p, 2, "溺水了。")

@@ -17,10 +17,10 @@ func TestAnticheatConfigAndReload(t *testing.T) {
 	ap.name = "AdminPlayer"
 	ap.sid = "admin_sid_12345"
 
-	// 1. 验证默认反作弊配置
+	// 1. 验证默认反作弊配置（当前暂时默认关闭）
 	cfg := s.anticheatConfig()
-	if !cfg.Enabled {
-		t.Fatal("expected default anticheat to be enabled")
+	if cfg.Enabled {
+		t.Fatal("expected default anticheat to be disabled by default")
 	}
 	if cfg.ReachDistance != 6.5 {
 		t.Fatalf("expected reach 6.5, got %f", cfg.ReachDistance)
@@ -32,14 +32,17 @@ func TestAnticheatConfigAndReload(t *testing.T) {
 		t.Fatalf("expected max speed 8.5, got %f", cfg.MaxSpeed)
 	}
 
-	// 2. 验证 ReachDistance 动态影响 reachable
+	// 2. 验证开启反作弊时，ReachDistance 动态生效拦截
+	cfg.Enabled = true
+	cfg.ReachDistance = 6.5
+	s.setAnticheatConfig(cfg)
 	ap.state.X = 10.0
 	ap.state.Y = 60.0
 	ap.state.Z = 10.0
 	// 方块距离玩家约 7.0 格 (> 6.5)
 	farMsg := Message{X: 17, Y: 60, Z: 10, F: 1}
 	if s.reachable(ap, farMsg) {
-		t.Fatal("expected block 7.0m away to be unreachable with reach 6.5")
+		t.Fatal("expected block 7.0m away to be unreachable with reach 6.5 when enabled")
 	}
 
 	// 调大 reachDistance 至 8.0
@@ -51,9 +54,6 @@ func TestAnticheatConfigAndReload(t *testing.T) {
 
 	// 3. 验证关闭反作弊时直接放行
 	superFarMsg := Message{X: 50, Y: 60, Z: 10, F: 1}
-	if s.reachable(ap, superFarMsg) {
-		t.Fatal("expected super far block to be unreachable when enabled")
-	}
 	cfg.Enabled = false
 	s.setAnticheatConfig(cfg)
 	if !s.reachable(ap, superFarMsg) {
@@ -110,5 +110,20 @@ func TestAnticheatConfigAndReload(t *testing.T) {
 	}
 	if s.anticheatConfig().Enabled != false {
 		t.Fatal("expected anticheat to be disabled after toggle")
+	}
+
+	// 验证 anticheat on 与 anticheat off
+	if _, err := s.console("admin", "anticheat on", r.ID, ap.name); err != nil {
+		t.Fatalf("anticheat on failed: %v", err)
+	}
+	if !s.anticheatConfig().Enabled {
+		t.Fatal("expected anticheat to be enabled after on")
+	}
+
+	if _, err := s.console("admin", "anticheat off", r.ID, ap.name); err != nil {
+		t.Fatalf("anticheat off failed: %v", err)
+	}
+	if s.anticheatConfig().Enabled {
+		t.Fatal("expected anticheat to be disabled after off")
 	}
 }

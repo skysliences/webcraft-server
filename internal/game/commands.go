@@ -39,7 +39,7 @@ var commandCatalog = []commandDef{
 	{Name: "seed", Usage: "/seed", Description: "查询当前世界的数字种子", NeedOP: false},
 	{Name: "worldinfo", Usage: "/worldinfo", Description: "查询当前世界维度、尺寸与运行状态", NeedOP: false},
 	{Name: "scoreboard", Usage: "/scoreboard <objectives|players|toggle> ...", Description: "管理计分板项目、显示槽位及玩家分数", NeedOP: false},
-	{Name: "anticheat", Usage: "/anticheat [status|reload|toggle]", Description: "查看或动态调整反作弊参数", NeedOP: true},
+	{Name: "anticheat", Usage: "/anticheat [status|reload|toggle|on|off]", Description: "查看或动态调整反作弊开关与参数", NeedOP: true},
 }
 
 // nearestPlayer returns the closest player to p (or p itself if alone).

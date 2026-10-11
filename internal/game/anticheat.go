@@ -40,14 +40,14 @@ type AnticheatConfig struct {
 
 func DefaultAnticheatConfig() AnticheatConfig {
 	return AnticheatConfig{
-		Enabled:         true,
+		Enabled:         false, // 暂时默认关闭反作弊
 		ReachDistance:   6.5,
 		AttackReach:     4.5,
 		MaxSpeed:        8.5,
 		SpeedTolerance:  1.8,
 		MaxTeleportDist: 10.0,
-		NoclipCheck:     true,
-		FlyCheck:        true,
+		NoclipCheck:     false, // 暂时默认关闭
+		FlyCheck:        false, // 暂时默认关闭
 		MaxAirTicks:     25,
 	}
 }
@@ -362,13 +362,25 @@ func (s *Server) handleAnticheatCommand(p *Peer, args []string) (bool, bool) {
 		p.sys(fmt.Sprintf("反作弊配置已重新加载生效：启用=%v，挖掘距离=%.1f格，最大速度=%.1fm/s", newCfg.Enabled, newCfg.ReachDistance, newCfg.MaxSpeed))
 		return true, true
 	}
+	if args[0] == "off" || args[0] == "disable" || args[0] == "close" {
+		cfg.Enabled = false
+		s.setAnticheatConfig(cfg)
+		p.sys("反作弊系统已关闭 (disabled)。")
+		return true, true
+	}
+	if args[0] == "on" || args[0] == "enable" || args[0] == "open" {
+		cfg.Enabled = true
+		s.setAnticheatConfig(cfg)
+		p.sys("反作弊系统已开启 (enabled)。")
+		return true, true
+	}
 	if args[0] == "toggle" {
 		cfg.Enabled = !cfg.Enabled
 		s.setAnticheatConfig(cfg)
 		p.sys(fmt.Sprintf("反作弊已切换为：%v", cfg.Enabled))
 		return true, true
 	}
-	p.sys("用法：/anticheat [status|reload|toggle]")
+	p.sys("用法：/anticheat [status|reload|toggle|on|off]")
 	return true, false
 }
 

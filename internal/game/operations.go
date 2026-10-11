@@ -633,13 +633,25 @@ func (s *Server) console(actor, command, world, player string) (any, error) {
 			}
 			return "反作弊配置已从 anticheat.json 重新加载并生效", nil
 		}
+		if args[0] == "off" || args[0] == "disable" || args[0] == "close" {
+			cfg := s.anticheatConfig()
+			cfg.Enabled = false
+			s.setAnticheatConfig(cfg)
+			return "反作弊已关闭", nil
+		}
+		if args[0] == "on" || args[0] == "enable" || args[0] == "open" {
+			cfg := s.anticheatConfig()
+			cfg.Enabled = true
+			s.setAnticheatConfig(cfg)
+			return "反作弊已开启", nil
+		}
 		if args[0] == "toggle" {
 			cfg := s.anticheatConfig()
 			cfg.Enabled = !cfg.Enabled
 			s.setAnticheatConfig(cfg)
 			return fmt.Sprintf("反作弊已切换为：%v", cfg.Enabled), nil
 		}
-		return nil, errors.New("用法：anticheat [status|reload|toggle]")
+		return nil, errors.New("用法：anticheat [status|reload|toggle|on|off]")
 	case "op", "deop":
 		if len(args) != 1 {
 			return nil, errors.New("op/deop <玩家名字或账号 ID>")

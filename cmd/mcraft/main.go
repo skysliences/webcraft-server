@@ -89,14 +89,14 @@ func main() {
 	config.IdentityCallback = os.Getenv("AUTH_CALLBACK_URL")
 	config.GamePublicURL = os.Getenv("GAME_PUBLIC_URL")
 	config.Anticheat = game.AnticheatConfig{
-		Enabled:         envBool("ANTICHEAT_ENABLED", true),
+		Enabled:         envBool("ANTICHEAT_ENABLED", false), // 默认暂时关闭
 		ReachDistance:   envFloat("ANTICHEAT_REACH_DISTANCE", 6.5),
 		AttackReach:     envFloat("ANTICHEAT_ATTACK_REACH", 4.5),
 		MaxSpeed:        envFloat("ANTICHEAT_MAX_SPEED", 8.5),
 		SpeedTolerance:  envFloat("ANTICHEAT_SPEED_TOLERANCE", 1.8),
 		MaxTeleportDist: envFloat("ANTICHEAT_MAX_TELEPORT_DIST", 10.0),
-		NoclipCheck:     envBool("ANTICHEAT_NOCLIP_ENABLED", true),
-		FlyCheck:        envBool("ANTICHEAT_FLY_ENABLED", true),
+		NoclipCheck:     envBool("ANTICHEAT_NOCLIP_ENABLED", false),
+		FlyCheck:        envBool("ANTICHEAT_FLY_ENABLED", false),
 		MaxAirTicks:     envInt("ANTICHEAT_MAX_AIR_TICKS", 25),
 	}
 	app, err := game.New(config)
