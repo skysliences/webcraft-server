@@ -109,7 +109,7 @@ func (s *Server) blockData(r *Room, key uint64, b int) map[string]any {
 	x, y, z := coords(key)
 	return map[string]any{"x": x, "y": y, "z": z, "oldBlock": s.block(r, x, y, z), "block": b}
 }
-func (s *Server) allowBlock(p *Peer, key uint64, b int) bool {
+func (s *Server) allowBlock(p *Peer, key uint64, b int, context ...map[string]any) bool {
 	if b != blkExplosiveTNT && s.primedTNT(p.room, key) {
 		return false
 	}
@@ -126,6 +126,15 @@ func (s *Server) allowBlock(p *Peer, key uint64, b int) bool {
 		for field, value := range mechanic {
 			data[field] = value
 		}
+	}
+	if len(context) > 0 {
+		for field, value := range context[0] {
+			data[field] = value
+		}
+		for field, value := range data {
+			context[0][field] = value
+		}
+		data = context[0]
 	}
 	return s.allowed(name, p.room, p, data) && (component == nil || s.allowed(api.RedstoneComponentChanging, p.room, p, data)) && s.mechanicBlockBefore(p.room, p, data)
 }

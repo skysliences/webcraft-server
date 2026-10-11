@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) survivalInfo(r *Room) map[string]any {
-	info := map[string]any{"seed": seed(r.seedID()), "w": r.width(), "gen": r.gen(), "dim": r.dimName(), "spawn": s.engine.spawn(r), "time": r.root().Time, "grace": 0, "hardcore": r.hardcore()}
+	info := map[string]any{"seed": seed(r.seedID()), "w": r.width(), "gen": r.gen(), "dim": r.dimName(), "spawn": s.engine.spawn(r), "time": r.root().Time, "grace": 0, "hardcore": r.hardcore(), "digAck": true, "placeAck": true, "placeInventoryAck": true}
 	if r.dimName() == "end" {
 		info["spawn"] = endSpawn(r)
 	}
@@ -95,13 +95,37 @@ func (s *Server) reachable(p *Peer, m Message) bool {
 	if !p.room.inside(m.X, m.Z) || m.Y < 1 || m.Y >= 128 || m.F < 0 || m.F > 5 {
 		return false
 	}
+	cfg := s.anticheatConfig()
+	if !cfg.Enabled {
+		return true
+	}
+	reach := cfg.ReachDistance
 	st := p.state
 	dx, dy, dz := float64(m.X)+0.5-st.X, float64(m.Y)+0.5-st.Y-1.62, float64(m.Z)+0.5-st.Z
-	return dx*dx+dy*dy+dz*dz <= 6.5*6.5
+	return dx*dx+dy*dy+dz*dz <= reach*reach
 }
 func (s *Server) survivalMessage(p *Peer, m Message) {
 	st := p.state
 	r := p.room
+	if m.T == "sel" && m.Q > 0 && m.Q <= 2147483647 && m.I >= 0 && m.I < 9 {
+		p.inventorySelQ = m.Q
+		revision := p.inventoryRevision
+		defer func() {
+			if p.inventoryRevision == revision {
+				s.inventory(p, 0, 0)
+			}
+		}()
+	}
+	if ack := s.placementAck(p, m); ack != nil {
+		defer ack()
+	}
+	// Opt-in reconciliation, including silent refusals and plugin cancellation.
+	// It is a state response, never a successful block/event notification.
+	if m.T == "dig" && m.S == 2 && m.Q > 0 && m.Q <= 2147483647 && s.reachable(p, m) {
+		defer func() {
+			p.json(map[string]any{"t": "digack", "q": m.Q, "x": m.X, "y": m.Y, "z": m.Z, "b": s.block(r, m.X, m.Y, m.Z), "epoch": p.epoch, "dim": r.dimName()})
+		}()
+	}
 	if m.T == "respawn" {
 		if !st.Dead {
 			return
@@ -374,12 +398,31 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			}
 			return
 		}
-		if !s.allowBlock(p, blockKey(x, y, z), placed) {
+		before := itemSnapshot(held)
+		after := copyStack(held)
+		count := 0
+		if !s.isCreative(p) {
+			after = sized(held, held.Count-1)
+			count = 1
+		}
+		invData := s.blockData(r, blockKey(x, y, z), placed)
+		invData["reason"] = "place"
+		invData["actor"] = p.sid
+		invData["source"] = "player"
+		invData["target"] = map[string]any{"kind": "block", "x": x, "y": y, "z": z}
+		invData["item"] = held.ID
+		invData["count"] = 1
+		invData["consumed"] = count
+		invData["slot"] = st.Inv.Selected
+		invData["face"] = m.F
+		invData["stack"] = before.Clone()
+		invData["before"] = before.Clone()
+		invData["after"] = itemSnapshot(after)
+		if !s.allowBlock(p, blockKey(x, y, z), placed, invData) {
 			s.broadcastChunk(r, blockKey(x, y, z), old)
 			s.inventory(p, 0, 0)
 			return
 		}
-		invData := map[string]any{"reason": "place", "item": held.ID, "count": 1, "slot": st.Inv.Selected}
 		if !s.allowed(api.InventoryChanging, r, p, invData) {
 			s.inventory(p, 0, 0)
 			return
@@ -390,10 +433,12 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		m.PlacementStack = sized(held, 1)
-		if !s.isCreative(p) {
-			st.Inv.Slots[st.Inv.Selected] = sized(held, held.Count-1)
+		if !reflect.DeepEqual(before, itemSnapshot(s.heldItem(p))) {
+			s.inventory(p, 0, 0)
+			return
 		}
-		s.edit(p, blockKey(x, y, z), placed)
+		st.Inv.Slots[st.Inv.Selected] = after
+		s.commitPlayerBlock(p, blockKey(x, y, z), placed, invData)
 		s.applyTorchChanges(r, p, changes)
 		s.afterPlace(p, x, y, z, placed, m)
 		s.emit(api.InventoryChanged, r, p, invData)
@@ -458,7 +503,8 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 				continue
 			}
 			dx, dy, dz := other.state.X-st.X, other.state.Y-st.Y, other.state.Z-st.Z
-			if dx*dx+dy*dy+dz*dz > 16 || !s.lineClear(r, [3]float64{st.X, st.Y + 1.62, st.Z}, [3]float64{other.state.X, other.state.Y + 1, other.state.Z}) {
+			reach := s.anticheatConfig().AttackReach
+			if dx*dx+dy*dy+dz*dz > reach*reach || !s.lineClear(r, [3]float64{st.X, st.Y + 1.62, st.Z}, [3]float64{other.state.X, other.state.Y + 1, other.state.Z}) {
 				return
 			}
 			ctx := s.playerAttack(p, playerTarget(other), s.attributes(p)[api.AttackDamage])

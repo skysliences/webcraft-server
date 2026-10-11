@@ -410,8 +410,8 @@ func (m *Manager) Emit(event *api.Event) []Intent {
 		for _, key := range spec.Mutable {
 			if value, ok := response.Data[key]; ok {
 				switch key {
-				case "authenticated", "fields", "fuseTicks":
-					// The identity/priming gates validate these typed fields before commit.
+				case "authenticated", "fields", "fuseTicks", "entries", "footer", "enabled", "objective", "title":
+					// The identity/priming/scoreboard gates validate these typed fields before commit.
 					event.Data[key] = value
 				case "amount", "count", "ticks", "amplifier", "duration", "damage", "radius":
 					if number, ok := value.(float64); ok {

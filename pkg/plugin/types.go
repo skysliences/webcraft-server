@@ -112,38 +112,38 @@ func (e *Event) Number(key string) float64 {
 }
 
 type Action struct {
-	AccountID         string       `json:"accountId,omitempty"`
-	Type              string       `json:"type"`
-	WorldID           string       `json:"worldId,omitempty"`
-	PlayerID          uint16       `json:"playerId,omitempty"`
-	Message           string       `json:"message,omitempty"`
-	ItemID            int          `json:"itemId,omitempty"`
-	ItemName          string       `json:"itemName,omitempty"`
-	Count             int          `json:"count,omitempty"`
-	Block             int          `json:"block,omitempty"`
-	X                 float64      `json:"x,omitempty"`
-	Y                 float64      `json:"y,omitempty"`
-	Z                 float64      `json:"z,omitempty"`
-	Amount            float64      `json:"amount,omitempty"`
-	Reason            string       `json:"reason,omitempty"`
-	EntityType        string       `json:"entityType,omitempty"`
-	Ticks             uint64       `json:"ticks,omitempty"`
-	FuseTicks         int          `json:"fuseTicks,omitempty"`
-	Slot              int          `json:"slot,omitempty"`
-	Face              int          `json:"face,omitempty"`
-	Stack             *ItemStack   `json:"stack,omitempty"`
-	Expected          *ItemStack   `json:"expected,omitempty"`
-	ContainerExpected []*ItemStack `json:"containerExpected,omitempty"`
-	EntityID          uint32       `json:"entityId,omitempty"`
-	Rule              string       `json:"rule,omitempty"`
-	Value             bool         `json:"value,omitempty"`
-	Difficulty        string       `json:"difficulty,omitempty"`
-	GameMode          string       `json:"gamemode,omitempty"`
-	Effect            string       `json:"effect,omitempty"`
-	Duration          int          `json:"duration,omitempty"`
-	Amplifier         int          `json:"amplifier,omitempty"`
-	Rain              bool         `json:"rain,omitempty"`
-	Thunder           bool         `json:"thunder,omitempty"`
+	AccountID         string        `json:"accountId,omitempty"`
+	Type              string        `json:"type"`
+	WorldID           string        `json:"worldId,omitempty"`
+	PlayerID          uint16        `json:"playerId,omitempty"`
+	Message           string        `json:"message,omitempty"`
+	ItemID            int           `json:"itemId,omitempty"`
+	ItemName          string        `json:"itemName,omitempty"`
+	Count             int           `json:"count,omitempty"`
+	Block             int           `json:"block,omitempty"`
+	X                 float64       `json:"x,omitempty"`
+	Y                 float64       `json:"y,omitempty"`
+	Z                 float64       `json:"z,omitempty"`
+	Amount            float64       `json:"amount,omitempty"`
+	Reason            string        `json:"reason,omitempty"`
+	EntityType        string        `json:"entityType,omitempty"`
+	Ticks             uint64        `json:"ticks,omitempty"`
+	FuseTicks         int           `json:"fuseTicks,omitempty"`
+	Slot              int           `json:"slot,omitempty"`
+	Face              int           `json:"face,omitempty"`
+	Stack             *ItemStack    `json:"stack,omitempty"`
+	Expected          *ItemStack    `json:"expected,omitempty"`
+	ContainerExpected []*ItemStack  `json:"containerExpected,omitempty"`
+	EntityID          uint32        `json:"entityId,omitempty"`
+	Rule              string        `json:"rule,omitempty"`
+	Value             bool          `json:"value,omitempty"`
+	Difficulty        string        `json:"difficulty,omitempty"`
+	GameMode          string        `json:"gamemode,omitempty"`
+	Effect            string        `json:"effect,omitempty"`
+	Duration          int           `json:"duration,omitempty"`
+	Amplifier         int           `json:"amplifier,omitempty"`
+	Rain              bool          `json:"rain,omitempty"`
+	Thunder           bool          `json:"thunder,omitempty"`
 	Lines             []string      `json:"lines,omitempty"`
 	Blocks            []BlockChange `json:"blocks,omitempty"`
 }
@@ -250,6 +250,8 @@ const (
 	InventoryCreativeChanged  = "inventory.creative.changed"
 	InventoryClicking         = "inventory.click.before"
 	InventoryClicked          = "inventory.clicked"
+	InventoryDragging         = "inventory.drag.before"
+	InventoryDragged          = "inventory.dragged"
 	InventoryOpening          = "inventory.open.before"
 	InventoryOpened           = "inventory.opened"
 	InventoryClosed           = "inventory.closed"
@@ -285,6 +287,7 @@ const (
 )
 
 type EventSpec struct {
+	Fields      []string `json:"fields,omitempty"`
 	Name        string   `json:"name"`
 	Cancellable bool     `json:"cancellable"`
 	Mutable     []string `json:"mutable,omitempty"`
@@ -301,13 +304,29 @@ func Events() []EventSpec {
 	mutable[PlayerHealing] = []string{"amount"}
 	mutable[ItemWearing] = []string{"amount"}
 	names = append(names, InventoryCreativeChanging, InventoryCreativeChanged)
+	names = append(names, InventoryDragging, InventoryDragged)
 	mutable[InventoryCreativeChanging] = []string{"count"}
 	out := make([]EventSpec, 0, len(names))
 	for _, name := range names {
 		before := len(name) > 7 && name[len(name)-7:] == ".before"
-		out = append(out, EventSpec{Name: name, Cancellable: before && name != WorldSaving, Mutable: mutable[name]})
+		spec := EventSpec{Name: name, Cancellable: before && name != WorldSaving, Mutable: mutable[name]}
+		if name == BlockPlacing || name == BlockPlaced || name == BlockChanged || name == InventoryChanging || name == InventoryChanged {
+			spec.Fields = []string{"x", "y", "z", "oldBlock", "block", "reason", "actor", "source", "target", "item", "count", "consumed", "slot", "face", "stack", "before", "after"}
+		}
+		out = append(out, spec)
 	}
 	out = append(out, identityEvents()...)
 	out = append(out, EventSpec{Name: ServerWorldSelecting, Cancellable: true}, EventSpec{Name: ServerWorldSelected})
 	return append(out, extensionEvents()...)
+}
+
+// ScoreboardEntry 表示计分板单行条目
+type ScoreboardEntry struct {
+	Name     string  `json:"name"`
+	Score    int     `json:"score"`
+	Icon     string  `json:"icon,omitempty"`
+	Badge    string  `json:"badge,omitempty"`
+	Color    string  `json:"color,omitempty"`
+	Rank     int     `json:"rank,omitempty"`
+	Progress float64 `json:"progress,omitempty"`
 }

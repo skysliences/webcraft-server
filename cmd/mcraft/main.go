@@ -22,6 +22,34 @@ func env(k, fallback string) string {
 	}
 	return fallback
 }
+
+func envBool(k string, fallback bool) bool {
+	if v := os.Getenv(k); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
+	}
+	return fallback
+}
+
+func envFloat(k string, fallback float64) float64 {
+	if v := os.Getenv(k); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return fallback
+}
+
+func envInt(k string, fallback int) int {
+	if v := os.Getenv(k); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
 func main() {
 	root := env("PROJECT_ROOT", "..")
 	data, _ := filepath.Abs(env("DATA_DIR", filepath.Join(root, "data")))
@@ -60,6 +88,17 @@ func main() {
 	config.IdentityPublicKey = os.Getenv("AUTH_PUBLIC_KEY")
 	config.IdentityCallback = os.Getenv("AUTH_CALLBACK_URL")
 	config.GamePublicURL = os.Getenv("GAME_PUBLIC_URL")
+	config.Anticheat = game.AnticheatConfig{
+		Enabled:         envBool("ANTICHEAT_ENABLED", true),
+		ReachDistance:   envFloat("ANTICHEAT_REACH_DISTANCE", 6.5),
+		AttackReach:     envFloat("ANTICHEAT_ATTACK_REACH", 4.5),
+		MaxSpeed:        envFloat("ANTICHEAT_MAX_SPEED", 8.5),
+		SpeedTolerance:  envFloat("ANTICHEAT_SPEED_TOLERANCE", 1.8),
+		MaxTeleportDist: envFloat("ANTICHEAT_MAX_TELEPORT_DIST", 10.0),
+		NoclipCheck:     envBool("ANTICHEAT_NOCLIP_ENABLED", true),
+		FlyCheck:        envBool("ANTICHEAT_FLY_ENABLED", true),
+		MaxAirTicks:     envInt("ANTICHEAT_MAX_AIR_TICKS", 25),
+	}
 	app, err := game.New(config)
 	if err != nil {
 		log.Fatal(err)

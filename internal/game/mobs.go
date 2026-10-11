@@ -531,7 +531,8 @@ func (s *Server) attackMob(p *Peer, id uint32) {
 		return
 	}
 	dx, dz := m.X-p.state.X, m.Z-p.state.Z
-	if math.Hypot(dx, dz) > 4 || math.Abs(m.Y-p.state.Y) > 3 || !s.lineClear(r, [3]float64{p.state.X, p.state.Y + 1.62, p.state.Z}, [3]float64{m.X, m.Y + mobSpecs[m.Type].Height/2, m.Z}) {
+	reach := s.anticheatConfig().AttackReach
+	if math.Hypot(dx, dz) > reach || math.Abs(m.Y-p.state.Y) > reach*0.75 || !s.lineClear(r, [3]float64{p.state.X, p.state.Y + 1.62, p.state.Z}, [3]float64{m.X, m.Y + mobSpecs[m.Type].Height/2, m.Z}) {
 		return
 	}
 	amount := s.attributes(p)[api.AttackDamage]

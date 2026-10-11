@@ -3,6 +3,7 @@ package game
 import (
 	"math"
 	"reflect"
+	"sort"
 	"time"
 
 	api "mcraft/backend/pkg/plugin"
@@ -122,10 +123,13 @@ func (s *Server) creativeInventory(p *Peer, m Message) bool {
 func creativeChanges(before, after map[int]*Stack) []map[string]any {
 	out := make([]map[string]any, 0, len(after))
 	// Stable slot order makes event data predictable across plugin languages.
-	for slot := 0; slot < 36; slot++ {
-		if v, ok := after[slot]; ok {
-			out = append(out, map[string]any{"slot": slot, "before": itemSnapshot(before[slot]), "after": itemSnapshot(v)})
-		}
+	slots := make([]int, 0, len(after))
+	for slot := range after {
+		slots = append(slots, slot)
+	}
+	sort.Ints(slots)
+	for _, slot := range slots {
+		out = append(out, map[string]any{"slot": slot, "before": itemSnapshot(before[slot]), "after": itemSnapshot(after[slot])})
 	}
 	return out
 }

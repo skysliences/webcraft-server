@@ -19,3 +19,4 @@ server.env
 
 # System
 .DS_Store
+public/

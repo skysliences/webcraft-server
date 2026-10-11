@@ -20,9 +20,13 @@ func TestGamePluginProcess(t *testing.T) {
 	for _, name := range []string{api.ChunkPopulating, api.ChunkPopulated} {
 		p.On(name, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
 			raw, err := json.Marshal(e)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			f, err := os.OpenFile(filepath.Join(c.DataDir, "vegetation.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			defer f.Close()
 			_, err = f.Write(append(raw, '\n'))
 			// Monitor changes and cancellation must not influence population.
@@ -32,23 +36,49 @@ func TestGamePluginProcess(t *testing.T) {
 		})
 	}
 	p.On(api.ChunkPopulating, api.Subscription{}, func(c *api.Context, e *api.Event) error {
-		if e.Number("x") == -1 { e.Cancel("vegetation protected") }
+		if e.Number("x") == -1 {
+			e.Cancel("vegetation protected")
+		}
 		e.Data["count"] = 0 // This event declares no mutable fields.
 		e.Data["blocks"] = []any{}
 		return nil
 	})
-	for _,spec:=range api.Events() {
-	 name:=spec.Name
-	 if !strings.Contains(name,"experience")&&!strings.Contains(name,"effect")&&!strings.Contains(name,"dimension")&&!strings.HasPrefix(name,"server.")&&!strings.HasPrefix(name,"world.rule")&&!strings.HasPrefix(name,"block.physics")&&!strings.HasPrefix(name,"projectile."){continue}
-	 p.On(name,api.Subscription{Priority:api.Monitor},func(c *api.Context,e *api.Event)error {raw,err:=json.Marshal(e);if err!=nil{return err};f,err:=os.OpenFile(filepath.Join(c.DataDir,"extensions.jsonl"),os.O_CREATE|os.O_APPEND|os.O_WRONLY,0600);if err!=nil{return err};_,err=f.Write(append(raw,'\n'));f.Close();return err})
-	 if spec.Cancellable {p.On(name,api.Subscription{},func(c *api.Context,e *api.Event)error {
-	  if e.String("reason")=="protected"||e.String("effect")=="slowness"||name==api.PlayerDimensionChanging||name==api.PlayerExperienceChanging&&e.Number("amount")==13||name==api.ProjectileLaunching&&e.Number("damage")==13||name==api.BackupCreating&&e.String("reason")=="blocked" {e.Cancel("extension protected")}
-	  if name==api.PlayerExperienceChanging&&e.Number("amount")==7 {e.Data["amount"]=14}
-	  if name==api.PlayerEffectApplying&&e.String("effect")=="speed" {e.Data["ticks"]=40;e.Data["amplifier"]=2;e.Data["undeclared"]=true}
-	  return nil
-	 })}
+	for _, spec := range api.Events() {
+		name := spec.Name
+		if !strings.Contains(name, "experience") && !strings.Contains(name, "effect") && !strings.Contains(name, "dimension") && !strings.HasPrefix(name, "server.") && !strings.HasPrefix(name, "world.rule") && !strings.HasPrefix(name, "block.physics") && !strings.HasPrefix(name, "projectile.") {
+			continue
+		}
+		p.On(name, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
+			raw, err := json.Marshal(e)
+			if err != nil {
+				return err
+			}
+			f, err := os.OpenFile(filepath.Join(c.DataDir, "extensions.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+			if err != nil {
+				return err
+			}
+			_, err = f.Write(append(raw, '\n'))
+			f.Close()
+			return err
+		})
+		if spec.Cancellable {
+			p.On(name, api.Subscription{}, func(c *api.Context, e *api.Event) error {
+				if e.String("reason") == "protected" || e.String("effect") == "slowness" || name == api.PlayerDimensionChanging || name == api.PlayerExperienceChanging && e.Number("amount") == 13 || name == api.ProjectileLaunching && e.Number("damage") == 13 || name == api.BackupCreating && e.String("reason") == "blocked" {
+					e.Cancel("extension protected")
+				}
+				if name == api.PlayerExperienceChanging && e.Number("amount") == 7 {
+					e.Data["amount"] = 14
+				}
+				if name == api.PlayerEffectApplying && e.String("effect") == "speed" {
+					e.Data["ticks"] = 40
+					e.Data["amplifier"] = 2
+					e.Data["undeclared"] = true
+				}
+				return nil
+			})
+		}
 	}
-	for _, name := range []string{api.PlayerAttacking, api.PlayerAttacked, api.PlayerDamaging, api.PlayerDamaged, api.PlayerDying, api.PlayerDead, api.EntityDamaging, api.EntityDamaged, api.EntityDying, api.EntityDead, api.ItemMetaChanging, api.ItemMetaChanged, api.ItemWearing, api.ItemWorn, api.PlayerHealing, api.PlayerHealed, api.PlayerAttributesChanged, api.InventoryCreativeChanging, api.InventoryCreativeChanged, api.InventoryChanging, api.InventoryChanged} {
+	for _, name := range []string{api.BlockBreaking, api.BlockBroken, api.BlockPlacing, api.BlockPlaced, api.BlockChanged, api.PlayerAttacking, api.PlayerAttacked, api.PlayerDamaging, api.PlayerDamaged, api.PlayerDying, api.PlayerDead, api.EntityDamaging, api.EntityDamaged, api.EntityDying, api.EntityDead, api.ItemMetaChanging, api.ItemMetaChanged, api.ItemWearing, api.ItemWorn, api.PlayerHealing, api.PlayerHealed, api.PlayerAttributesChanged, api.InventoryCreativeChanging, api.InventoryCreativeChanged, api.InventoryChanging, api.InventoryChanged, api.InventoryClicking, api.InventoryClicked, api.InventoryDragging, api.InventoryDragged} {
 		p.On(name, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
 			raw, err := json.Marshal(e)
 			if err != nil {
@@ -66,12 +96,36 @@ func TestGamePluginProcess(t *testing.T) {
 			return closeErr
 		})
 	}
+	for _, name := range []string{api.InventoryChanging, api.InventoryClicking, api.InventoryDragging} {
+		name := name
+		p.On(name, api.Subscription{}, func(c *api.Context, e *api.Event) error {
+			if drag := e.InventoryDrag(); drag != nil {
+				mode, _ := drag.CursorBefore.Meta.CustomData["test:mode"].(string)
+				if name == api.InventoryChanging && mode == "cancel_inventory" || name == api.InventoryClicking && mode == "cancel_click" || name == api.InventoryDragging && mode == "cancel_drag" {
+					e.Cancel("drag protected")
+				}
+				e.Data["button"] = 1
+				e.Data["cursorAfter"] = nil
+				e.Data["changes"] = []any{}
+			}
+			return nil
+		})
+	}
+	p.On(api.InventoryDragging, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
+		e.Cancel("monitor ignored")
+		e.Data["slots"] = []int{}
+		return nil
+	})
 	p.On(api.InventoryCreativeChanging, api.Subscription{}, func(c *api.Context, e *api.Event) error {
 		switch int(e.Number("slot")) {
-		case 1: e.Cancel("creative protected")
-		case 2: e.Data["count"] = 2
-		case 3: e.Data["count"] = 1.5
-		case 4: e.Data["count"] = 65
+		case 1:
+			e.Cancel("creative protected")
+		case 2:
+			e.Data["count"] = 2
+		case 3:
+			e.Data["count"] = 1.5
+		case 4:
+			e.Data["count"] = 65
 		}
 		e.Data["item"] = 1 // Undeclared changes are ignored by the host.
 		return nil
@@ -82,7 +136,9 @@ func TestGamePluginProcess(t *testing.T) {
 		return nil
 	})
 	p.On(api.InventoryChanging, api.Subscription{}, func(c *api.Context, e *api.Event) error {
-		if strings.HasPrefix(e.String("reason"), "creative.") && e.Number("slot") == 5 { e.Cancel("inventory protected") }
+		if strings.HasPrefix(e.String("reason"), "creative.") && e.Number("slot") == 5 {
+			e.Cancel("inventory protected")
+		}
 		return nil
 	})
 	p.On(api.PlayerAttacking, api.Subscription{}, func(c *api.Context, e *api.Event) error {

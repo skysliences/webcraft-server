@@ -1,7 +1,12 @@
 package game
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -16,9 +21,123 @@ import (
 //    - 生存模式下无飞行特权时，检测玩家是否脱离地面支撑持续悬空或升空
 //    - 连续悬空无重力下落判定为非法飞行并回退拉回 (Setback)
 // 4. 超距交互与攻击反作弊 (Reach Check):
-//    - 限制挖掘方块交互距离 (<= 6.5 格)
-//    - 限制近战攻击实体距离 (<= 4.5 格)
+//    - 限制挖掘方块交互距离 (默认 <= 6.5 格，可配置)
+//    - 限制近战攻击实体距离 (默认 <= 4.5 格，可配置)
 // ---------------------------------------------------------------------------
+
+// AnticheatConfig 反作弊可配置参数
+type AnticheatConfig struct {
+	Enabled         bool    `json:"enabled"`         // 反作弊总开关（默认 true）
+	ReachDistance   float64 `json:"reachDistance"`   // 方块交互与挖掘距离（默认 6.5 格）
+	AttackReach     float64 `json:"attackReach"`     // 实体近战攻击距离（默认 4.5 格）
+	MaxSpeed        float64 `json:"maxSpeed"`        // 基准移动速度上限（默认 8.5 m/s）
+	SpeedTolerance  float64 `json:"speedTolerance"`  // 速度/瞬移容差倍率（默认 1.8）
+	MaxTeleportDist float64 `json:"maxTeleportDist"` // 单次移动最大瞬移距离（默认 10.0 格）
+	NoclipCheck     bool    `json:"noclipCheck"`     // 穿墙/相交检测开关（默认 true）
+	FlyCheck        bool    `json:"flyCheck"`        // 飞行/滞空检测开关（默认 true）
+	MaxAirTicks     int     `json:"maxAirTicks"`     // 允许连续滞空而不触发 Fly 违规的最大 tick 数（默认 25）
+}
+
+func DefaultAnticheatConfig() AnticheatConfig {
+	return AnticheatConfig{
+		Enabled:         true,
+		ReachDistance:   6.5,
+		AttackReach:     4.5,
+		MaxSpeed:        8.5,
+		SpeedTolerance:  1.8,
+		MaxTeleportDist: 10.0,
+		NoclipCheck:     true,
+		FlyCheck:        true,
+		MaxAirTicks:     25,
+	}
+}
+
+func (s *Server) anticheatConfig() AnticheatConfig {
+	s.anticheatMu.RLock()
+	defer s.anticheatMu.RUnlock()
+	return s.anticheat
+}
+
+func (s *Server) setAnticheatConfig(cfg AnticheatConfig) {
+	s.anticheatMu.Lock()
+	defer s.anticheatMu.Unlock()
+	s.anticheat = cfg
+}
+
+func (s *Server) initAnticheat() {
+	cfg := s.config.Anticheat
+	def := DefaultAnticheatConfig()
+	if cfg.ReachDistance <= 0 && cfg.AttackReach <= 0 && cfg.MaxSpeed <= 0 {
+		cfg = def
+	} else {
+		if cfg.ReachDistance <= 0 {
+			cfg.ReachDistance = def.ReachDistance
+		}
+		if cfg.AttackReach <= 0 {
+			cfg.AttackReach = def.AttackReach
+		}
+		if cfg.MaxSpeed <= 0 {
+			cfg.MaxSpeed = def.MaxSpeed
+		}
+		if cfg.SpeedTolerance <= 0 {
+			cfg.SpeedTolerance = def.SpeedTolerance
+		}
+		if cfg.MaxTeleportDist <= 0 {
+			cfg.MaxTeleportDist = def.MaxTeleportDist
+		}
+		if cfg.MaxAirTicks <= 0 {
+			cfg.MaxAirTicks = def.MaxAirTicks
+		}
+	}
+	// 支持从 DATA_DIR/anticheat.json 读取覆盖
+	if s.config.DataDir != "" {
+		p := filepath.Join(s.config.DataDir, "anticheat.json")
+		if data, err := os.ReadFile(p); err == nil {
+			var fileCfg AnticheatConfig
+			if err := json.Unmarshal(data, &fileCfg); err == nil {
+				if fileCfg.ReachDistance > 0 {
+					cfg.ReachDistance = fileCfg.ReachDistance
+				}
+				if fileCfg.AttackReach > 0 {
+					cfg.AttackReach = fileCfg.AttackReach
+				}
+				if fileCfg.MaxSpeed > 0 {
+					cfg.MaxSpeed = fileCfg.MaxSpeed
+				}
+				if fileCfg.SpeedTolerance > 0 {
+					cfg.SpeedTolerance = fileCfg.SpeedTolerance
+				}
+				if fileCfg.MaxTeleportDist > 0 {
+					cfg.MaxTeleportDist = fileCfg.MaxTeleportDist
+				}
+				if fileCfg.MaxAirTicks > 0 {
+					cfg.MaxAirTicks = fileCfg.MaxAirTicks
+				}
+				cfg.Enabled = fileCfg.Enabled
+				cfg.NoclipCheck = fileCfg.NoclipCheck
+				cfg.FlyCheck = fileCfg.FlyCheck
+			}
+		}
+	}
+	s.setAnticheatConfig(cfg)
+}
+
+func (s *Server) reloadAnticheatConfig() error {
+	if s.config.DataDir == "" {
+		return nil
+	}
+	p := filepath.Join(s.config.DataDir, "anticheat.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return err
+	}
+	var fileCfg AnticheatConfig
+	if err := json.Unmarshal(data, &fileCfg); err != nil {
+		return err
+	}
+	s.setAnticheatConfig(fileCfg)
+	return nil
+}
 
 type PlayerMovementState struct {
 	LastX, LastY, LastZ float64
@@ -28,9 +147,14 @@ type PlayerMovementState struct {
 	HasLastPos          bool
 }
 
-var movementStates = map[uint16]*PlayerMovementState{}
+var (
+	movementStates   = map[uint16]*PlayerMovementState{}
+	movementStatesMu sync.Mutex
+)
 
 func getMovementState(p *Peer) *PlayerMovementState {
+	movementStatesMu.Lock()
+	defer movementStatesMu.Unlock()
 	st := movementStates[p.id]
 	if st == nil {
 		st = &PlayerMovementState{
@@ -128,6 +252,11 @@ func (s *Server) validatePlayerMovement(p *Peer, toX, toY, toZ float64) (valid b
 		return true, ""
 	}
 
+	cfg := s.anticheatConfig()
+	if !cfg.Enabled {
+		return true, ""
+	}
+
 	st := p.state
 	mov := getMovementState(p)
 	now := time.Now()
@@ -152,29 +281,29 @@ func (s *Server) validatePlayerMovement(p *Peer, toX, toY, toZ float64) (valid b
 	hSpeed := hDist / dt
 
 	// 1. 速度检测 (Speed Check)
-	maxAllowedSpeed := 8.5 // 包含疾跑跳跃余量 (7.1m/s) + 网络延迟抖动余量
+	maxAllowedSpeed := cfg.MaxSpeed
 	if p.state.Ext != nil && p.state.Ext.Effects != nil {
 		if spdLvl := p.state.Ext.Effects["speed"]; spdLvl != nil && spdLvl.Amp >= 0 {
 			maxAllowedSpeed *= (1.0 + 0.2*float64(spdLvl.Amp+1))
 		}
 	}
 	// 瞬间瞬移或严重超速
-	if hDist > 10.0 || hSpeed > maxAllowedSpeed*1.8 {
+	if hDist > cfg.MaxTeleportDist || hSpeed > maxAllowedSpeed*cfg.SpeedTolerance {
 		return false, "移动速度异常 (Speed/Teleport)"
 	}
 
 	// 2. 穿墙检测 (Noclip/Phase Check)
-	if s.checkPlayerPathPhase(r, fromX, fromY, fromZ, toX, toY, toZ) {
+	if cfg.NoclipCheck && s.checkPlayerPathPhase(r, fromX, fromY, fromZ, toX, toY, toZ) {
 		return false, "非法穿墙移动 (Noclip/Phase)"
 	}
 
 	// 3. 非法飞行/悬空检测 (Fly Hack Check)
-	if !s.mayFly(p) {
+	if cfg.FlyCheck && !s.mayFly(p) {
 		onGround := s.playerHasGroundSupport(r, toX, toY, toZ)
 		if !onGround {
 			mov.AirTicks++
-			// 连续在空中超过 1.5 秒 (约 15 个数据帧)，且 Y 轴未表现出正常的重力坠落而是在平移或持续升空
-			if mov.AirTicks > 25 && toY >= fromY-0.05 {
+			// 连续在空中超过配置阈值，且 Y 轴未表现出正常的重力坠落而是在平移或持续升空
+			if mov.AirTicks > cfg.MaxAirTicks && toY >= fromY-0.05 {
 				return false, "生存模式非法飞行或滞空 (Fly Hack)"
 			}
 		} else {
@@ -196,11 +325,51 @@ func (s *Server) checkInteractionReach(p *Peer, targetX, targetY, targetZ float6
 	if s.isCreative(p) || s.isSpectator(p) {
 		return true
 	}
+	cfg := s.anticheatConfig()
+	if !cfg.Enabled {
+		return true
+	}
+	if maxDist <= 0 {
+		maxDist = cfg.ReachDistance
+	}
 	dx := p.state.X - targetX
 	dy := (p.state.Y + 1.62) - targetY
 	dz := p.state.Z - targetZ
 	dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
 	return dist <= maxDist
+}
+
+func (s *Server) handleAnticheatCommand(p *Peer, args []string) (bool, bool) {
+	if p == nil {
+		return true, false
+	}
+	if !s.canGameCommand(p, "server.admin") {
+		p.sys("该指令需要管理员 (OP) 权限。")
+		return true, false
+	}
+	cfg := s.anticheatConfig()
+	if len(args) == 0 || args[0] == "status" {
+		p.sys(fmt.Sprintf("反作弊配置：启用=%v，挖掘距离=%.1f格，攻击距离=%.1f格，最大速度=%.1fm/s，速度容差=%.1fx，瞬移阈值=%.1f格，穿墙检测=%v，飞行检测=%v，滞空容差=%dticks",
+			cfg.Enabled, cfg.ReachDistance, cfg.AttackReach, cfg.MaxSpeed, cfg.SpeedTolerance, cfg.MaxTeleportDist, cfg.NoclipCheck, cfg.FlyCheck, cfg.MaxAirTicks))
+		return true, true
+	}
+	if args[0] == "reload" {
+		if err := s.reloadAnticheatConfig(); err != nil {
+			p.sys("反作弊配置重载失败：" + err.Error())
+			return true, false
+		}
+		newCfg := s.anticheatConfig()
+		p.sys(fmt.Sprintf("反作弊配置已重新加载生效：启用=%v，挖掘距离=%.1f格，最大速度=%.1fm/s", newCfg.Enabled, newCfg.ReachDistance, newCfg.MaxSpeed))
+		return true, true
+	}
+	if args[0] == "toggle" {
+		cfg.Enabled = !cfg.Enabled
+		s.setAnticheatConfig(cfg)
+		p.sys(fmt.Sprintf("反作弊已切换为：%v", cfg.Enabled))
+		return true, true
+	}
+	p.sys("用法：/anticheat [status|reload|toggle]")
+	return true, false
 }
 
 func init() {
@@ -218,3 +387,4 @@ func init() {
 		}
 	})
 }
+

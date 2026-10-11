@@ -156,6 +156,9 @@ const (
 
 	// 反作弊违规
 	PlayerAnticheatViolation = "player.anticheat.violation"
+
+	// 计分板自定义渲染
+	ScoreboardRendering = "scoreboard.render"
 )
 
 func extensionEvents() []EventSpec {
@@ -194,6 +197,7 @@ func extensionEvents() []EventSpec {
 		AnvilUsing, AnvilUsed, AnvilDamaged,
 		AnimalBreeding, AnimalBred, AnimalTaming, AnimalTamed, AnimalShearing, AnimalSheared,
 		PlayerAnticheatViolation,
+		ScoreboardRendering,
 	}
 	mutable := map[string][]string{
 		TNTPriming:               {"fuseTicks"},
@@ -205,9 +209,10 @@ func extensionEvents() []EventSpec {
 		ExplosionCreating:        {"radius"},
 		ItemDropping:             {"count"},
 		AnvilUsing:               {"name"},
+		ScoreboardRendering:      {"title", "enabled", "entries", "footer", "objective"},
 	}
 	for _, name := range names {
-		before := len(name) > 7 && name[len(name)-7:] == ".before"
+		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering
 		out = append(out, EventSpec{Name: name, Cancellable: before, Mutable: mutable[name]})
 	}
 	return out

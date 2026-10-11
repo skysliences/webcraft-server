@@ -215,8 +215,13 @@ API v1 是本项目的插件协议，不加载 Bukkit/Spigot 的 Java JAR 或 Go
 | 掉落消失 | `item.despawn.before` | `item.despawned` | 同上；`reason`：`expired` 或 `void`，无玩家快照 |
 | 背包操作 | `inventory.change.before` | `inventory.changed` | `reason`：`creative.hotbar`, `mine.tool`, `pickup`, `place`, `click`, `consume`, `equip`, `plugin.give_item`；对应物品/槽数据 |
 | 点击物品栏 | `inventory.click.before` | `inventory.clicked` | `window`, `kind`, `slot`, `mode`, `button`, `stack`, `cursor`, `slots` |
+| 拖拽分配物品 | `inventory.drag.before` | `inventory.dragged` | 所有字段只读：`reason=quick_craft`、`actor` 固定账号 ID、`target`、`window/kind`、`button`、`dragType=even/single`、`slots`、`cursorBefore/cursorAfter` 和每格 `changes` 的完整元数据快照 |
 | 打开容器/工作台 | `inventory.open.before` | `inventory.opened` | `kind`, `x`, `y`, `z`；打开后 `window` |
 | 关闭容器/工作台 | — | `inventory.closed` | `window`, `kind`；不可取消，保证游标与合成材料回收 |
+
+拖拽以一次事务提交：左键（`button=0`, `dragType=even`）在可接受的格子均分，右键（`button=1`, `dragType=single`）每格一个；余数留在鼠标上。满格、输出格、不能放入的装备/容器格和不同元数据的堆叠会跳过，重复或越界槽请求整体拒绝。协议保留 API v1 的 `mode=5, slot=-999, slots=[...]`；此处 `-999` 是提交标记，不表示丢弃。依次执行 `inventory.change.before`、`inventory.click.before`、`inventory.drag.before`，任一取消都不写入任何格子，也不发送完成事件。完成后才依次发送 `inventory.dragged`、`inventory.clicked`、`inventory.changed`。无实际变化的请求不发送成功事件。
+
+`changes` 按槽号排序，包含所有实际目标格（包括合成格和容器格）的 `slot/before/after`；各物品快照带完整名称、Lore、属性、自定义数据、附魔和耐久。`cursor` 保留旧字段，代表提交前游标；`cursorBefore/cursorAfter` 描述结算前后。SDK 的 `e.InventoryDrag()` 返回独立的 `InventoryDragContext`，修改该对象不能改变背包。所有拖拽字段只读，Monitor 也不能取消；需要禁止特定物品分配时监听 before 并取消。参考可选示例 `backend/examples/inventory-guard`，其自定义标签检查仅属于示例插件，不写入核心规则。该事务设计参考 [Spigot InventoryDragEvent](https://hub.spigotmc.org/javadocs/spigot/org/bukkit/event/inventory/InventoryDragEvent.html)。
 | 熔炼产物 | `furnace.smelt.before` | `furnace.smelted` | `x`, `y`, `z`, `input`, `result`（物品 ID）, `count` |
 | 玩家攻击 | `player.attack.before` | `player.attacked` | **`amount`**；`damage` 完整攻击者、目标和武器快照 |
 | 伤害 | `player.damage.before` | `player.damaged` | **`amount`**, `reason`, `cause`；`damage` 伤害上下文，完成：`health`, `appliedAmount` |
@@ -556,3 +561,134 @@ SDK `Context.DispenseBlock(e,x,y,z,expected []*ItemStack)` 复制完整九格快
 4. **统一 RandomTick 调度循环**：
    - 支持通过游戏规则 `/gamerule randomTickSpeed <n>`（默认 3）动态调节世界随机刻速率。
    - 统一驱动农作物/树苗生长、甘蔗/仙人掌递增、耕地退化补水、树叶自然枯萎、冰雪消融以及火焰蔓延灭火。
+
+### 创造模式客户端破坏预测
+
+客户端可以在点击时预测方块消失，但 Go 服务仍通过原有 `block.break.before`、相关组件保护与物品校验提交破坏，提交后才发送 `block.broken` / `block.changed`。插件取消或校验失败时没有成功事件。预测不会生成掉落、消耗物品或写入服务端存档，插件仍使用 API v1 的既有事件和完整玩家物品快照。
+
+服务端在世界信息中声明 `sv.digAck=true`。客户端可为 `dig s=2` 附加正整数 `q`（最大 2147483647）；服务端在处理后返回 `digack`，含 `q,x,y,z,b,epoch,dim`，其中 `b` 是此时权威方块 ID。这是成功与失败都可能收到的状态校正消息，不是成功事件。超出交互距离或过期 epoch 的请求不会探测世界状态。未声明能力的旧服和未附带 `q` 的旧客户端保持原协议。
+
+### 客户端放置预测与权威确认
+
+世界信息声明 `sv.placeAck=true`。支持此能力的网页在右键放置时先预测建筑方块及必要的多格结构，并立即重绘；背包、掉落、保存和插件业务都仍由 Go 决定。放置与破坏使用同一有序预测层；旧地形快照、较早的确认不能覆盖较新的操作，取消/拒绝恢复对应权威方块，超时和跨维度/窗口切换清理预测。浏览器离线规则与显示共用 WASM，因此直接执行本地规则，不把预测数据当作本地规则的输入。旧服未声明能力时继续使用原广播流程。
+
+普通放置保持事件顺序 `block.place.before` → `inventory.change.before` → 提交 → `block.placed` / `block.changed` → `inventory.changed`。旧坐标、`oldBlock`、`block`、库存 `reason=place` / `count=1` 字段保留，增加只读的 `actor, source, target, slot, face, consumed, stack, before, after`。`count` 表示请求放一个，`consumed` 表示实际扣除数（创造为 0），物品快照携带完整名称、Lore、属性、附魔和命名空间数据。组件继续使用原组件事件。任何 before 取消或校验失败都不会扣除物品或发成功事件。`GET /api/events` 对方块事件列出上下文字段，`mutable` 仍为空；Monitor 只读。SDK `e.BlockPlacement()` 返回独立快照，示例 `inventory-guard` 演示通过自定义数据阻止放置，不在核心硬编码 Lore 规则。
+
+新请求可以附带 `q` 和 `preview:[{x,y,z}]`。后者只选择确认坐标，不决定放置位置或方块 ID。服务端仅接受距离合法、序号 1…2147483647、1…4 个不重复坐标且各自距点击位置曼哈顿距离不超过 2 的确认请求；仍按自身物品、支撑、碰撞、权限及插件规则执行。处理后 `placeack:{q,blocks:[{x,y,z,b}],epoch,dim}` 返回每格的最终状态，成功、拒绝和仅发生交互都可能收到，绝不能把它当成功事件。旧客户端无需这些字段，存档格式不变。
+
+### 放置背包数量预测
+
+Go 服声明 `sv.placeInventoryAck=true` 后，客户端在生存放置时立即显示扣一件，创造模式不扣数。该显示不提交库存，也不触发额外游戏成功事件。取消、校验失败和仅交互均返回完整权威背包；旧服继续原流程，浏览器单机直接执行本地规则。超时撤销显示预留，下一份权威快照仍决定真实数量。
+
+`sinv` 与 `placeack.inventory` 提供会话内递增 `rev`、处理至哪个放置序号的 `placeQ`、处理至哪个快捷栏选择序号的 `selQ`、`epoch/dim`。客户端丢弃旧版本和过期世界快照，移除已结算的预留，再在完整权威背包上叠加尚未确认的扣数；不是“失败加一”。连续操作、拾取、丢弃、旧回包和快捷栏切换不会重复扣数或覆盖较新状态。预留匹配原槽、ID、耐久、附魔和全部元数据；预测为空不能重复使用最后一件。序号是协议校正数据，不写入世界存档，不是插件成功通知。
+
+普通放置的 `inventory.change.before/inventory.changed` 仍沿用原规则，事件目录增加只读的可选放置上下文字段，与方块事件一致。SDK `e.PlacementInventory()` 仅为 `reason=place` 的库存事件提供独立 `PlacementSnapshot`，含真实 `Consumed`、`Stack/Before/After` 和操作者；完整元数据不会因显示预测丢失。非放置库存事件继续各自原有字段。任何 before 取消都不扣真实库存，也不发布 `block.placed` 或 `inventory.changed`；可修改字段列表不变，Monitor 只读。`inventory-guard` 示例在 Monitor 记录成功提交的真实消耗。
+
+### 计分板插件化渲染与官方可配置计分板插件
+
+#### 1. 计分板渲染事件 (`scoreboard.render`)
+- **事件名称**：`scoreboard.render`（Go SDK 常量：`api.ScoreboardRendering`）
+- **触发时机**：服务端定期（每秒）或玩家状态/延迟发生变更时，为每个在线玩家构建计分板数据包时触发。
+- **可取消性**：`Cancellable: true`。若插件调用 `e.Cancel()` 或设置 `e.Data["enabled"] = false`，该玩家将不会接收计分板（前端隐藏）。
+- **只读快照**：
+  - `e.Player`：目标接收玩家的完整元数据快照（包括名字、UUID、坐标 X/Y/Z、生命值 Health、饱腹度 Food、最大生命 MaxHealth、网络延迟 ping 等）。
+  - `e.World`：当前世界/房间元数据（世界名称、游戏模式 Mode、在线人数 Online、维度 Dimension 等）。
+- **可修改字段 (`mutable`)**：
+  - `title`（string）：计分板主标题。
+  - `enabled`（bool）：计分板开启/关闭开关。
+  - `entries`（array/slice）：计分板条目列表，每项支持 `name`（名称）、`score`（数值）、`icon`（图标 emoji）、`badge`（右侧文本徽章）、`color`（高亮颜色）、`rank`（排名）、`progress`（0.0~1.0 进度条）。
+  - `footer`（map）：计分板底部信息，支持 `server`、`mode`、`ping`、`tag` 等自定义标签。
+  - `objective`（string）：活跃计分项标识。
+
+#### 2. 官方独立可配置计分板插件 (`custom-scoreboard`)
+- **插件目录**：`plugins/custom-scoreboard/`，源码位于 `backend/examples/custom-scoreboard/main.go`。
+- **构建方式**：
+  ```sh
+  go build -o ../plugins/custom-scoreboard/custom-scoreboard ./examples/custom-scoreboard
+  ```
+- **配置文件 (`plugins/custom-scoreboard/config.json`)**：
+  服主无需重新编译，可随时编辑此文件自定义展示内容与版式：
+  ```json
+  {
+    "enabled": true,
+    "title": "⚡ CCRAFT 官方服务器 ⚡",
+    "entries": [
+      {
+        "name": "世界",
+        "score": 0,
+        "icon": "🌐",
+        "badge": "{mode}"
+      },
+      {
+        "name": "在线人数",
+        "score": "{online}",
+        "icon": "👥",
+        "badge": "{online} 人"
+      },
+      {
+        "name": "网络延迟",
+        "score": "{ping}",
+        "icon": "⚡",
+        "badge": "{ping}ms"
+      },
+      {
+        "name": "{player_name}",
+        "score": "{health}",
+        "icon": "❤️",
+        "badge": "YOU",
+        "progress": "{health_ratio}"
+      },
+      {
+        "name": "游戏时刻",
+        "score": 0,
+        "icon": "⏳",
+        "badge": "{time}"
+      },
+      {
+        "name": "位置坐标",
+        "score": 0,
+        "icon": "🧭",
+        "badge": "{pos_x}, {pos_y}, {pos_z}"
+      }
+    ],
+    "footer": {
+      "server": "game.ccraft.app",
+      "mode": "{mode}",
+      "tag": "ccraft.app"
+    }
+  }
+  ```
+- **丰富占位符支持**：
+  - `{player_name}`：当前玩家昵称
+  - `{ping}`：实测网络往返延迟 (ms)
+  - `{online}`：当前在线玩家人数
+  - `{world_name}`：世界名称
+  - `{mode}`：世界模式（SURVIVAL / CREATIVE 等）
+  - `{health}`：玩家当前生命值（如 20）
+  - `{max_health}`：玩家最大生命值
+  - `{health_ratio}`：生命值百分比（0.00 ~ 1.00，用于血条进度）
+  - `{food}`：玩家饱腹度
+  - `{pos_x}`, `{pos_y}`, `{pos_z}`：玩家三维坐标
+  - `{time}`：游戏昼夜时间（如 14:30）
+  - `{dimension}`：当前维度（overworld, nether, the_end）
+- **管理命令**：
+  - `/screload`（别名 `/scoreboard-reload`）：管理人员可随时在游戏内重载 `config.json`，无需重启服务。
+
+### 服务端反作弊参数配置化与热重载
+
+服务端运动反作弊（超距交互、超距攻击、移动超速、瞬移拉回、穿墙与滞空飞行检测）全面解耦为可配置系统：
+- **配置文件**：通过运行目录下的 `anticheat.json` 或环境变量动态配置：
+  - `ANTICHEAT_ENABLED` / `enabled`（bool，默认 `true`）：反作弊系统总开关
+  - `ANTICHEAT_REACH_DISTANCE` / `reachDistance`（float64，默认 `6.5`）：玩家方块破坏与交互最大距离（格）
+  - `ANTICHEAT_ATTACK_REACH` / `attackReach`（float64，默认 `4.5`）：玩家近战攻击实体最大判定距离（格）
+  - `ANTICHEAT_MAX_SPEED` / `maxSpeed`（float64，默认 `8.5`）：玩家水平移动基准速度上限（m/s）
+  - `ANTICHEAT_SPEED_TOLERANCE` / `speedTolerance`（float64，默认 `1.8`）：瞬移与网络抖动速度容差倍率
+  - `ANTICHEAT_MAX_TELEPORT_DIST` / `maxTeleportDist`（float64，默认 `10.0`）：单次位移合法瞬移距离阈值
+  - `ANTICHEAT_NOCLIP_ENABLED` / `noclipCheck`（bool，默认 `true`）：穿墙相交检测开关
+  - `ANTICHEAT_FLY_ENABLED` / `flyCheck`（bool，默认 `true`）：无滞空特权飞行检测开关
+  - `ANTICHEAT_MAX_AIR_TICKS` / `maxAirTicks`（int，默认 `25`）：允许连续离地无重力滞空的最大 tick 数
+- **游戏内管理与控制台命令**：
+  - `/anticheat status`：查询当前服务端生效的反作弊参数详情
+  - `/anticheat reload`：从 `anticheat.json` 重新加载反作弊配置并即刻生效
+  - `/anticheat toggle`：一键开启/临时关闭反作弊检测
+

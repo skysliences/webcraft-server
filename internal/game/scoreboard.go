@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math"
+	api "mcraft/backend/pkg/plugin"
 	"sort"
 	"strconv"
 	"strings"
@@ -198,12 +199,18 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 	activeObjName := sc.DisplaySlots["sidebar"]
 	obj := sc.Objectives[activeObjName]
 
+	var (
+		title     string
+		entries   []ScoreEntry
+		footerMap map[string]any
+	)
+
 	// 1. 如果有活跃的自定义 Objective，渲染自定义条目
 	if obj != nil {
+		title = obj.DisplayName
 		scoresMap := sc.Scores[activeObjName]
 		metaMap := sc.Meta[activeObjName]
 
-		var entries []ScoreEntry
 		for holder, val := range scoresMap {
 			entry := ScoreEntry{
 				Name:  holder,
@@ -244,117 +251,214 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 				}
 			}
 		}
-		footerMap := map[string]any{
+		footerMap = map[string]any{
 			"server": r.Name,
 			"mode":   r.Mode,
 		}
 		if p != nil {
 			footerMap["ping"] = p.ping
 		}
-		return map[string]any{
-			"t":         "scoreboard",
-			"enabled":   true,
-			"objective": obj.Name,
-			"title":     obj.DisplayName,
-			"slot":      "sidebar",
-			"entries":   entries,
-			"footer":    footerMap,
+	} else {
+		// 2. 默认智能世界状态计分板（Smart Default Scoreboard）
+		activeObjName = "world_overview"
+		title = "WEBCRAFT ONLINE"
+		onlineCount := len(r.Peers)
+		timeOfDay := r.root().Time % 24000
+		hour := (timeOfDay/1000 + 6) % 24
+		minute := (timeOfDay % 1000) * 60 / 1000
+		timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
+		timePhase := "白天"
+		if timeOfDay >= 13000 && timeOfDay < 23000 {
+			timePhase = "黑夜"
+		} else if timeOfDay >= 12000 && timeOfDay < 13000 {
+			timePhase = "黄昏"
 		}
-	}
 
-	// 2. 默认智能世界状态计分板（Smart Default Scoreboard）
-	onlineCount := len(r.Peers)
-	timeOfDay := r.root().Time % 24000
-	hour := (timeOfDay/1000 + 6) % 24
-	minute := (timeOfDay % 1000) * 60 / 1000
-	timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
-	timePhase := "白天"
-	if timeOfDay >= 13000 && timeOfDay < 23000 {
-		timePhase = "黑夜"
-	} else if timeOfDay >= 12000 && timeOfDay < 13000 {
-		timePhase = "黄昏"
-	}
-
-	entries := []ScoreEntry{
-		{
-			Name:  "世界",
-			Score: onlineCount,
-			Icon:  "🌐",
-			Badge: strings.ToUpper(r.Mode),
-		},
-		{
-			Name:  "在线人数",
-			Score: onlineCount,
-			Icon:  "👥",
-		},
-		{
-			Name:  "时刻 " + timePhase,
-			Score: int(timeOfDay / 100),
-			Icon:  "⏳",
-			Badge: timeStr,
-		},
-	}
-
-	// 添加服务器网络延迟
-	if p != nil {
-		pingVal := p.ping
-		pingBadge := fmt.Sprintf("%dms", pingVal)
-		if pingVal <= 0 {
-			pingBadge = "--ms"
+		entries = []ScoreEntry{
+			{
+				Name:  "世界",
+				Score: onlineCount,
+				Icon:  "🌐",
+				Badge: strings.ToUpper(r.Mode),
+			},
+			{
+				Name:  "在线人数",
+				Score: onlineCount,
+				Icon:  "👥",
+			},
+			{
+				Name:  "时刻 " + timePhase,
+				Score: int(timeOfDay / 100),
+				Icon:  "⏳",
+				Badge: timeStr,
+			},
 		}
-		entries = append(entries, ScoreEntry{
-			Name:  "服务器延迟",
-			Score: pingVal,
-			Icon:  "⚡",
-			Badge: pingBadge,
-		})
-	}
 
-	// 添加当前玩家自身的健康与状态
-	if p != nil && p.state != nil {
-		hp := int(math.Ceil(p.state.Health))
-		entries = append(entries, ScoreEntry{
-			Name:     p.name,
-			Score:    hp,
-			Icon:     "❤️",
-			Badge:    "YOU",
-			Progress: p.state.Health / 20.0,
-		})
-	}
-
-	// 统计世界中其他玩家
-	otherIdx := 1
-	for other := range r.Peers {
-		if other != p && otherIdx <= 5 {
-			h := int(math.Ceil(other.state.Health))
+		// 添加服务器网络延迟
+		if p != nil {
+			pingVal := p.ping
+			pingBadge := fmt.Sprintf("%dms", pingVal)
+			if pingVal <= 0 {
+				pingBadge = "--ms"
+			}
 			entries = append(entries, ScoreEntry{
-				Name:     other.name,
-				Score:    h,
-				Icon:     "⚔️",
-				Progress: other.state.Health / 20.0,
+				Name:  "服务器延迟",
+				Score: pingVal,
+				Icon:  "⚡",
+				Badge: pingBadge,
 			})
-			otherIdx++
+		}
+
+		// 添加当前玩家自身的健康与状态
+		if p != nil && p.state != nil {
+			hp := int(math.Ceil(p.state.Health))
+			entries = append(entries, ScoreEntry{
+				Name:     p.name,
+				Score:    hp,
+				Icon:     "❤️",
+				Badge:    "YOU",
+				Progress: p.state.Health / 20.0,
+			})
+		}
+
+		// 统计世界中其他玩家
+		otherIdx := 1
+		for other := range r.Peers {
+			if other != p && otherIdx <= 5 {
+				h := int(math.Ceil(other.state.Health))
+				entries = append(entries, ScoreEntry{
+					Name:     other.name,
+					Score:    h,
+					Icon:     "⚔️",
+					Progress: other.state.Health / 20.0,
+				})
+				otherIdx++
+			}
+		}
+
+		footerMap = map[string]any{
+			"server": r.Name,
+			"mode":   strings.ToUpper(r.Mode),
+			"dim":    strings.ToUpper(r.root().ID),
+		}
+		if p != nil {
+			footerMap["ping"] = p.ping
 		}
 	}
 
-	footerMap := map[string]any{
-		"server": r.Name,
-		"mode":   strings.ToUpper(r.Mode),
-		"dim":    strings.ToUpper(r.root().ID),
+	// 3. 插件化渲染扩展 (api.ScoreboardRendering)
+	// 允许插件拦截、接管或重写计分板标题、条目与页脚
+	rawEntries := make([]any, len(entries))
+	for i, e := range entries {
+		rawEntries[i] = map[string]any{
+			"name":     e.Name,
+			"score":    e.Score,
+			"icon":     e.Icon,
+			"badge":    e.Badge,
+			"color":    e.Color,
+			"rank":     e.Rank,
+			"progress": e.Progress,
+		}
+	}
+	renderData := map[string]any{
+		"objective": activeObjName,
+		"title":     title,
+		"entries":   rawEntries,
+		"footer":    footerMap,
+		"enabled":   true,
+		"ping":      0,
+		"online":    len(r.Peers),
 	}
 	if p != nil {
-		footerMap["ping"] = p.ping
+		renderData["ping"] = p.ping
+	}
+	ev := s.emit(api.ScoreboardRendering, r, p, renderData)
+	if ev.Cancelled {
+		return map[string]any{
+			"t":       "scoreboard",
+			"enabled": false,
+		}
+	}
+	if en, ok := renderData["enabled"].(bool); ok && !en {
+		return map[string]any{
+			"t":       "scoreboard",
+			"enabled": false,
+		}
+	}
+	if customTitle, ok := renderData["title"].(string); ok && customTitle != "" {
+		title = customTitle
+	}
+	if customObj, ok := renderData["objective"].(string); ok && customObj != "" {
+		activeObjName = customObj
+	}
+	if customFooter, ok := renderData["footer"].(map[string]any); ok && customFooter != nil {
+		footerMap = customFooter
+	}
+	if parsed := parseScoreEntries(renderData["entries"]); len(parsed) > 0 {
+		entries = parsed
 	}
 
 	return map[string]any{
 		"t":         "scoreboard",
 		"enabled":   true,
-		"objective": "world_overview",
-		"title":     "WEBCRAFT ONLINE",
+		"objective": activeObjName,
+		"title":     title,
 		"slot":      "sidebar",
 		"entries":   entries,
 		"footer":    footerMap,
 	}
+}
+
+func parseScoreEntries(val any) []ScoreEntry {
+	if val == nil {
+		return nil
+	}
+	var out []ScoreEntry
+	switch list := val.(type) {
+	case []ScoreEntry:
+		return list
+	case []any:
+		for _, item := range list {
+			if m, ok := item.(map[string]any); ok {
+				out = append(out, scoreEntryFromMap(m))
+			}
+		}
+	case []map[string]any:
+		for _, m := range list {
+			out = append(out, scoreEntryFromMap(m))
+		}
+	}
+	return out
+}
+
+func scoreEntryFromMap(m map[string]any) ScoreEntry {
+	var e ScoreEntry
+	if n, ok := m["name"].(string); ok {
+		e.Name = n
+	}
+	if s, ok := m["score"].(float64); ok {
+		e.Score = int(s)
+	} else if s, ok := m["score"].(int); ok {
+		e.Score = s
+	}
+	if ic, ok := m["icon"].(string); ok {
+		e.Icon = ic
+	}
+	if bg, ok := m["badge"].(string); ok {
+		e.Badge = bg
+	}
+	if c, ok := m["color"].(string); ok {
+		e.Color = c
+	}
+	if rk, ok := m["rank"].(float64); ok {
+		e.Rank = int(rk)
+	} else if rk, ok := m["rank"].(int); ok {
+		e.Rank = rk
+	}
+	if pr, ok := m["progress"].(float64); ok {
+		e.Progress = pr
+	}
+	return e
 }
 
 // broadcastScoreboard 向房间内所有客户端同步计分板

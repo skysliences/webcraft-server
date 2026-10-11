@@ -66,9 +66,23 @@ func fixtureID(base, label string) string {
 	return info.(testAccountInfo).ID
 }
 
+func findTestEngineFile() string {
+	candidates := []string{
+		"../../../public/engine.wasm",
+		"../../public/engine.wasm",
+		"../public/engine.wasm",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return "../../../public/engine.wasm"
+}
+
 func testApp(t *testing.T, dir string) (*Server, *httptest.Server) {
 	t.Helper()
-	app, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm", AllowedOrigins: []string{"http://127.0.0.1:8080"}, MaxPlayers: 4})
+	app, err := New(Config{DataDir: dir, EngineFile: findTestEngineFile(), AllowedOrigins: []string{"http://127.0.0.1:8080"}, MaxPlayers: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

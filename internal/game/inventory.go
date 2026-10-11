@@ -205,7 +205,9 @@ func (s *Server) inventory(p *Peer, q, d int) {
 	s.refreshCraft(p)
 	s.recoverItems(p)
 	s.syncAttributes(p)
-	p.json(map[string]any{"t": "sinv", "s": p.state.Inv.Slots, "sel": p.state.Inv.Selected, "d": d})
+	data := s.inventorySnapshot(p)
+	data["t"], data["d"] = "sinv", d
+	p.json(data)
 	if p.window != nil {
 		p.json(map[string]any{"t": "wslot", "w": p.window.ID, "s": p.window.Slots})
 	}
@@ -219,7 +221,20 @@ func (s *Server) inventory(p *Peer, q, d int) {
 	}
 	s.health(p)
 }
+
+// Session-only ordering metadata. Client predictions never enter Inventory or
+// persistence; every snapshot contains the actual server-owned item metadata.
+func (s *Server) inventorySnapshot(p *Peer) map[string]any {
+	p.inventoryRevision++
+	return map[string]any{"s": p.state.Inv.Slots, "sel": p.state.Inv.Selected, "rev": p.inventoryRevision, "placeQ": p.inventoryPlaceQ, "selQ": p.inventorySelQ, "epoch": p.epoch, "dim": p.room.dimName()}
+}
 func (s *Server) click(p *Peer, m Message) {
+	// QUICK_CRAFT uses the outside sentinel to commit a list of target slots.
+	// Dispatch it before outside-click handling; it never throws the cursor.
+	if m.M == 5 {
+		s.dragInventory(p, m)
+		return
+	}
 	if p.state.Dead || m.W != p.windowID() || !p.validSlot(m.S) || m.B < 0 || m.B > 8 {
 		return
 	}
@@ -374,42 +389,6 @@ func (s *Server) click(p *Peer, m Message) {
 		} else if s.mayPlace(p, slot, h) && h.Count <= s.stackMax(slot, h) {
 			p.put(slot, h)
 			p.state.Inv.Slots[m.B] = v
-		}
-	case 5: // drag split.
-		if c == nil || m.B > 1 || len(m.L) == 0 || len(m.L) > 46 {
-			break
-		}
-		seen := map[int]bool{}
-		var slots []int
-		for _, j := range m.L {
-			if seen[j] || j == -999 || !p.validSlot(j) {
-				continue
-			}
-			seen[j] = true
-			a := p.get(j)
-			if s.mayPlace(p, j, c) && (a == nil || same(a, c)) {
-				slots = append(slots, j)
-			}
-		}
-		if len(slots) > 0 {
-			left := c.Count
-			each := c.Count / len(slots)
-			if m.B == 1 {
-				each = 1
-			}
-			for _, j := range slots {
-				a := p.get(j)
-				had := 0
-				if a != nil {
-					had = a.Count
-				}
-				n := min(left, min(each, s.stackMax(j, c)-had))
-				if n > 0 {
-					p.put(j, sized(c, had+n))
-					left -= n
-				}
-			}
-			p.state.Cursor = sized(c, left)
 		}
 	case 6: // double click collect.
 		if c != nil {

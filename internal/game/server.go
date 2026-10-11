@@ -40,6 +40,7 @@ type Config struct {
 	WorldID               string
 	WorldName             string
 	WorldMode             string
+	Anticheat             AnticheatConfig
 }
 type Server struct {
 	identity             *identityClient
@@ -48,6 +49,8 @@ type Server struct {
 	mu                   sync.Mutex
 	chunkPreparer        *chunkPreparer
 	config               Config
+	anticheatMu          sync.RWMutex
+	anticheat            AnticheatConfig
 	rooms                map[string]*Room
 	engine               *Engine
 	rules                *Rules
@@ -96,6 +99,7 @@ func New(config Config) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{config: config, rooms: map[string]*Room{}, engine: engine, rules: rules, nextID: 1, rng: rand.New(rand.NewSource(time.Now().UnixNano())), started: time.Now(), stop: make(chan struct{}), stopRequested: make(chan struct{}, 1), done: make(chan struct{})}
+	s.initAnticheat()
 	engine.server = s
 	s.unlockData = unlock
 	if err = s.loadRooms(); err != nil {
@@ -558,89 +562,93 @@ type packet struct {
 	body []byte
 }
 type Peer struct {
-	originX, originZ int
-	epoch            uint32
-	conn             *websocket.Conn
-	send             chan packet
-	room             *Room
-	sid              string
-	id               uint16
-	owner            bool
-	state            *Player
-	position         bool
-	flags            byte
-	rd               int
-	name             string
-	builder          string
-	window           *Window
-	nextWindow       int
-	known            map[int]bool
-	chunkStreaming   bool
-	chunkStreamAt    time.Time
-	knownDrops       map[uint32]bool
-	knownMobs        map[uint32]bool
-	mining           *digState
-	useAt            time.Time
-	useSlot          int
-	attackAt         time.Time
-	peakY            float64
-	lastHealth       time.Time
-	air              int
-	closed           bool
-	lastSystem       string
-	lastSystemAt     time.Time
-	sessionHash      string
-	attributes       map[string]float64
-	ping             int
+	inventoryRevision uint64
+	inventoryPlaceQ   int
+	inventorySelQ     int
+	originX, originZ  int
+	epoch             uint32
+	conn              *websocket.Conn
+	send              chan packet
+	room              *Room
+	sid               string
+	id                uint16
+	owner             bool
+	state             *Player
+	position          bool
+	flags             byte
+	rd                int
+	name              string
+	builder           string
+	window            *Window
+	nextWindow        int
+	known             map[int]bool
+	chunkStreaming    bool
+	chunkStreamAt     time.Time
+	knownDrops        map[uint32]bool
+	knownMobs         map[uint32]bool
+	mining            *digState
+	useAt             time.Time
+	useSlot           int
+	attackAt          time.Time
+	peakY             float64
+	lastHealth        time.Time
+	air               int
+	closed            bool
+	lastSystem        string
+	lastSystemAt      time.Time
+	sessionHash       string
+	attributes        map[string]float64
+	ping              int
 }
 type digState struct {
 	X, Y, Z, Block, Held int
 	At                   time.Time
 }
 type Message struct {
-	PlacementStack *Stack   `json:"-"`
-	Forward        float64  `json:"forward"`
-	Turn           float64  `json:"turn"`
-	Exit           bool     `json:"exit"`
-	Lines          []string `json:"lines"`
-	Epoch          uint32   `json:"epoch"`
-	T              string   `json:"t"`
-	V              int      `json:"v"`
-	SID            string   `json:"sid"`
-	Key            string   `json:"key"`
-	Name           string   `json:"name"`
-	RD             int      `json:"rd"`
-	Text           string   `json:"m"`
-	M              int      `json:"-"`
-	Mode           int      `json:"mode"`
-	ID             uint16   `json:"id"`
-	Token          string   `json:"token"`
-	Confirm        bool     `json:"confirm"`
-	Hotbar         []int    `json:"hotbar"`
-	Slot           int      `json:"slot"`
-	I              int      `json:"i"`
-	N              int      `json:"n"`
-	Pick           int      `json:"pick"`
-	S              int      `json:"s"`
-	Blocking       bool     `json:"blocking"`
-	State          bool     `json:"state"`
-	X              int      `json:"x"`
-	Y              int      `json:"y"`
-	Z              int      `json:"z"`
-	F              int      `json:"f"`
-	W              int      `json:"w"`
-	B              int      `json:"b"`
-	Q              int      `json:"q"`
-	D              int      `json:"d"`
-	L              []int    `json:"l"`
-	P              uint16   `json:"p"`
-	E              uint32   `json:"e"`
-	Add            []uint16 `json:"add"`
-	Rm             []uint16 `json:"rm"`
-	All            bool     `json:"all"`
-	Part           string   `json:"part"`
-	Ping           int      `json:"ping,omitempty"`
-	Latency        int      `json:"latency,omitempty"`
+	Preview        []BlockPosition `json:"preview,omitempty"`
+	PlacementStack *Stack          `json:"-"`
+	Forward        float64         `json:"forward"`
+	Turn           float64         `json:"turn"`
+	Exit           bool            `json:"exit"`
+	Lines          []string        `json:"lines"`
+	Epoch          uint32          `json:"epoch"`
+	T              string          `json:"t"`
+	V              int             `json:"v"`
+	SID            string          `json:"sid"`
+	Key            string          `json:"key"`
+	Name           string          `json:"name"`
+	RD             int             `json:"rd"`
+	Text           string          `json:"m"`
+	M              int             `json:"-"`
+	Mode           int             `json:"mode"`
+	ID             uint16          `json:"id"`
+	Token          string          `json:"token"`
+	Confirm        bool            `json:"confirm"`
+	Hotbar         []int           `json:"hotbar"`
+	Slot           int             `json:"slot"`
+	I              int             `json:"i"`
+	N              int             `json:"n"`
+	Pick           int             `json:"pick"`
+	S              int             `json:"s"`
+	Blocking       bool            `json:"blocking"`
+	State          bool            `json:"state"`
+	X              int             `json:"x"`
+	Y              int             `json:"y"`
+	Z              int             `json:"z"`
+	F              int             `json:"f"`
+	W              int             `json:"w"`
+	B              int             `json:"b"`
+	Q              int             `json:"q"`
+	D              int             `json:"d"`
+	L              []int           `json:"l"`
+	P              uint16          `json:"p"`
+	E              uint32          `json:"e"`
+	Add            []uint16        `json:"add"`
+	Rm             []uint16        `json:"rm"`
+	All            bool            `json:"all"`
+	Part           string          `json:"part"`
+	Ping           int             `json:"ping,omitempty"`
+	Latency        int             `json:"latency,omitempty"`
 }
 
 func parseMessage(data []byte) (Message, error) {
@@ -1213,6 +1221,7 @@ func (s *Server) loop() {
 					for p := range r.Peers {
 						p.json(map[string]any{"t": "time", "time": r.root().Time})
 					}
+					s.broadcastScoreboard(r)
 				}
 				for p := range r.Peers {
 					if r.Infinite && p.chunkStreaming && !p.closed {
