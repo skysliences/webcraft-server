@@ -284,7 +284,8 @@ func (s *Server) mechanicSupported(r *Room, k uint64, b int) bool {
 			return false
 		}
 		d := faceOffsets[face]
-		return s.supportsTorch(s.block(r, x-d[0], y-d[1], z-d[2]))
+		supportBlock := s.block(r, x-d[0], y-d[1], z-d[2])
+		return s.supportsTorch(supportBlock) || baseName(s.rules.Names[supportBlock]) == "Chest"
 	}
 	return true
 }

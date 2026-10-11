@@ -94,7 +94,8 @@ func (s *Server) handleMechanicUse(p *Peer, m Message, expected *api.ItemStack, 
 				return true
 			}
 			d := faceOffsets[face]
-			if !s.supportsTorch(s.block(r, x-d[0], y-d[1], z-d[2])) {
+			supportBlock := s.block(r, x-d[0], y-d[1], z-d[2])
+			if !s.supportsTorch(supportBlock) && baseName(s.rules.Names[supportBlock]) != "Chest" {
 				return true
 			}
 		}
@@ -422,10 +423,11 @@ func init() {
 	})
 	onMessage("custom_ui_response", func(s *Server, p *Peer, m Message) bool {
 		data := map[string]any{
-			"uiId":   m.UIID,
-			"button": m.Button,
-			"values": m.Values,
-			"data":   m.CustomData,
+			"uiId":       m.UIID,
+			"button":     m.Button,
+			"values":     m.Values,
+			"data":       m.CustomData,
+			"customData": m.CustomData,
 		}
 		s.emit(api.PlayerCustomUISubmit, p.room, p, data)
 		return true

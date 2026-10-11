@@ -279,7 +279,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		for other := range r.Peers {
-			if other.window != nil && other.window.Key == key {
+			if other.window != nil && (other.window.Key == key || other.window.Key2 == key) {
 				s.closeWindow(other)
 				other.json(map[string]any{"t": "wclose", "w": other.nextWindow})
 			}
@@ -328,7 +328,9 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 		if m.T == "place" && s.runPlaceHooks(p, m, target) {
 			return
 		}
-		if p.flags&1 == 0 {
+		held := st.Inv.Slots[st.Inv.Selected]
+		isSign := held != nil && (held.ID == 383 || s.rules.byID[held.ID].Name == "Oak Sign")
+		if p.flags&1 == 0 && !(m.T == "place" && name == "Chest" && isSign) {
 			kind := map[string]string{"Crafting Table": "table", "Chest": "chest", "Furnace": "furnace"}[name]
 			if kind != "" {
 				s.openWindow(p, key, kind, m.Q)
@@ -343,7 +345,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			p.sys("只有房主可以建造。")
 			return
 		}
-		held := st.Inv.Slots[st.Inv.Selected]
+		held = st.Inv.Slots[st.Inv.Selected]
 		if held == nil {
 			return
 		}

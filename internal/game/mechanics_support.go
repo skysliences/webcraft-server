@@ -6,7 +6,7 @@ import (
 )
 
 func (s *Server) mechanicSupportChildren(r *Room, key uint64, b int) [][4]int {
-	if s.supportsTorch(b) {
+	if s.supportsTorch(b) || baseName(s.rules.Names[b]) == "Chest" {
 		return nil
 	}
 	x, y, z := coords(key)

@@ -187,6 +187,9 @@ func main() {
 
 			customData, _ := e.Data["customData"].(map[string]any)
 			if customData == nil {
+				customData, _ = e.Data["data"].(map[string]any)
+			}
+			if customData == nil {
 				return nil
 			}
 
@@ -249,6 +252,9 @@ func main() {
 
 			customData, _ := e.Data["customData"].(map[string]any)
 			if customData == nil {
+				customData, _ = e.Data["data"].(map[string]any)
+			}
+			if customData == nil {
 				return nil
 			}
 			cx := int(toFloat(customData["chestX"]))
@@ -281,6 +287,9 @@ func main() {
 
 	// 3. 打开箱子时拦截并弹出密码输入 UI
 	p.On(api.InventoryOpening, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+		if e.Bool("authorized") || e.String("source") == "plugin_authorized" {
+			return nil
+		}
 		cx := int(e.Number("x"))
 		cy := int(e.Number("y"))
 		cz := int(e.Number("z"))
@@ -291,7 +300,20 @@ func main() {
 		mu.RUnlock()
 
 		if record == nil {
-			return nil
+			// 检查相邻水平 4 格是否存在锁定的连体大箱子
+			for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				adjKey := posKey(cx+d[0], cy, cz+d[1])
+				mu.RLock()
+				adjRec := chestLocks[adjKey]
+				mu.RUnlock()
+				if adjRec != nil {
+					record = adjRec
+					break
+				}
+			}
+			if record == nil {
+				return nil
+			}
 		}
 
 		// 如果允许 OP 旁路且当前玩家是管理员

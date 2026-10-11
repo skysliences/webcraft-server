@@ -63,8 +63,15 @@ func (e *Engine) block(r *Room, x, y, z int) int {
 	 if !r.inside(x,z)||y<0||y>=128 {return 0}
 	 c,err:=e.server.ensureChunk(r,chunkCoord(x,z));if err!=nil {r.SaveError=err.Error();return 0};return int(c.Base[chunkIndex(x,y,z)])
 	}
+	if !r.inside(x, z) || y < 0 || y >= 128 {
+		return 0
+	}
 	e.use(r)
-	return int(e.call("get_block", uint64(int64(x)), uint64(int64(y)), uint64(int64(z))))
+	v := int32(uint32(e.call("get_block", uint64(int64(x)), uint64(int64(y)), uint64(int64(z)))))
+	if v < 0 {
+		return 0
+	}
+	return int(v)
 }
 func (e *Engine) spawn(r *Room) [3]int {
 	if r.Infinite && r.LegacyW==0 {

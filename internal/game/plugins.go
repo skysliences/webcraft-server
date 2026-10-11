@@ -323,7 +323,7 @@ func (s *Server) applyAction(a api.Action) {
 			if b == s.id("Ender Chest") {
 				kind = "ender"
 			}
-			s.openWindow(p, k, kind, 0)
+			s.openWindow(p, k, kind, 0, "plugin_authorized")
 		}
 	case "interact_vehicle":
 		if p != nil {

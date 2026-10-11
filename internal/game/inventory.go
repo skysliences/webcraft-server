@@ -10,6 +10,7 @@ type Window struct {
 	ID    int
 	Kind  string
 	Key   uint64
+	Key2  uint64
 	Slots Stacks
 }
 
@@ -92,8 +93,27 @@ func (p *Peer) get(slot int) *Stack {
 func (p *Peer) put(slot int, v *Stack) {
 	if slot < 46 {
 		p.state.Inv.Slots[slot] = v
-	} else {
-		p.window.Slots[slot-46] = v
+	} else if p.window != nil {
+		idx := slot - 46
+		if idx >= 0 && idx < len(p.window.Slots) {
+			p.window.Slots[idx] = v
+			if p.window.Key2 != 0 && p.room != nil && p.room.Containers != nil {
+				if idx < 27 {
+					if c1 := p.room.Containers[p.window.Key]; c1 != nil && len(c1.Slots) == 27 {
+						c1.Slots[idx] = v
+					}
+				} else if idx < 54 {
+					if c2 := p.room.Containers[p.window.Key2]; c2 != nil && len(c2.Slots) == 27 {
+						c2.Slots[idx-27] = v
+					}
+				}
+				for other := range p.room.Peers {
+					if other != p && other.window != nil && other.window.Key == p.window.Key && other.window.Key2 == p.window.Key2 && idx < len(other.window.Slots) {
+						other.window.Slots[idx] = v
+					}
+				}
+			}
+		}
 	}
 }
 func (p *Peer) validSlot(slot int) bool {
@@ -214,7 +234,7 @@ func (s *Server) inventory(p *Peer, q, d int) {
 	p.json(map[string]any{"t": "cursor", "c": p.state.Cursor, "q": q})
 	if p.window != nil && p.kind() != "table" && !transientWindow(p.kind()) {
 		for other := range p.room.Peers {
-			if other != p && other.window != nil && other.window.Key == p.window.Key {
+			if other != p && other.window != nil && (other.window.Key == p.window.Key || (p.window.Key2 != 0 && (other.window.Key == p.window.Key2 || other.window.Key2 == p.window.Key || other.window.Key2 == p.window.Key2))) {
 				other.json(map[string]any{"t": "wslot", "w": other.window.ID, "s": other.window.Slots})
 			}
 		}
@@ -337,8 +357,9 @@ func (s *Server) click(p *Peer, m Message) {
 				}
 			} else if ext := s.shiftTargets(p, slot, v); ext != nil {
 				to = ext
-			} else if p.kind() == "chest" {
-				for j := 46; j < 73; j++ {
+			} else if p.kind() == "chest" || p.kind() == "large_chest" {
+				end := 46 + len(p.window.Slots)
+				for j := 46; j < end; j++ {
 					to = append(to, j)
 				}
 			} else if p.kind() == "furnace" && s.rules.byID[v.ID].Smelt != nil {
@@ -411,18 +432,96 @@ func (s *Server) click(p *Peer, m Message) {
 	s.emit(api.InventoryChanged, p.room, p, data)
 	s.inventory(p, m.Q, 0)
 }
-func (s *Server) openWindow(p *Peer, key uint64, kind string, q int) {
+func (s *Server) findDoubleChestPair(r *Room, x, y, z int) (uint64, uint64, bool) {
+	k := blockKey(x, y, z)
+	if !r.inside(x, z) || y < 1 || y >= 128 {
+		return k, 0, false
+	}
+	b := s.block(r, x, y, z)
+	if b <= 0 || b >= len(s.rules.Names) || baseName(s.rules.Names[b]) != "Chest" {
+		return k, 0, false
+	}
+	offsets := [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	for _, d := range offsets {
+		nx, nz := x+d[0], z+d[1]
+		if !r.inside(nx, nz) {
+			continue
+		}
+		nb := s.block(r, nx, y, nz)
+		if nb > 0 && nb < len(s.rules.Names) && baseName(s.rules.Names[nb]) == "Chest" {
+			nk := blockKey(nx, y, nz)
+			if k < nk {
+				return k, nk, true
+			}
+			return nk, k, true
+		}
+	}
+	return k, 0, false
+}
+
+func (s *Server) openWindow(p *Peer, key uint64, kind string, q int, source ...string) {
 	x, y, z := coords(key)
-	data := map[string]any{"kind": kind, "x": x, "y": y, "z": z}
+	var key2 uint64
+	isDouble := false
+	if kind == "chest" {
+		var k1, k2 uint64
+		k1, k2, isDouble = s.findDoubleChestPair(p.room, x, y, z)
+		if isDouble {
+			key = k1
+			key2 = k2
+		}
+	}
+	src := "player"
+	if len(source) > 0 && source[0] != "" {
+		src = source[0]
+	}
+	data := map[string]any{"kind": kind, "x": x, "y": y, "z": z, "source": src}
+	if src == "plugin_authorized" {
+		data["authorized"] = true
+	}
+	if isDouble {
+		data["doubleChest"] = true
+	}
 	if !s.allowed(api.InventoryOpening, p.room, p, data) {
 		p.json(map[string]any{"t": "wopened", "q": q, "w": 0})
 		return
 	}
 	s.closeWindow(p)
 	p.nextWindow++
+	if isDouble {
+		kind = "large_chest"
+	}
 	size := windowSize(kind)
 	slots := make(Stacks, size)
-	if kind == "ender" {
+	if isDouble {
+		if p.room.Containers == nil {
+			p.room.Containers = map[uint64]*Container{}
+		}
+		c1 := p.room.Containers[key]
+		if c1 == nil {
+			c1 = &Container{Kind: "chest", Slots: make(Stacks, 27)}
+			p.room.Containers[key] = c1
+			p.room.Dirty = true
+		} else if len(c1.Slots) != 27 {
+			newSlots := make(Stacks, 27)
+			copy(newSlots, c1.Slots)
+			c1.Slots = newSlots
+			p.room.Dirty = true
+		}
+		c2 := p.room.Containers[key2]
+		if c2 == nil {
+			c2 = &Container{Kind: "chest", Slots: make(Stacks, 27)}
+			p.room.Containers[key2] = c2
+			p.room.Dirty = true
+		} else if len(c2.Slots) != 27 {
+			newSlots := make(Stacks, 27)
+			copy(newSlots, c2.Slots)
+			c2.Slots = newSlots
+			p.room.Dirty = true
+		}
+		copy(slots[0:27], c1.Slots)
+		copy(slots[27:54], c2.Slots)
+	} else if kind == "ender" {
 		e := p.ext()
 		if len(e.EnderChest) != 27 {
 			newEnder := make(Stacks, 27)
@@ -480,7 +579,7 @@ func (s *Server) openWindow(p *Peer, key uint64, kind string, q int) {
 		}
 		slots = c.Slots
 	}
-	p.window = &Window{ID: p.nextWindow, Kind: kind, Key: key, Slots: slots}
+	p.window = &Window{ID: p.nextWindow, Kind: kind, Key: key, Key2: key2, Slots: slots}
 	data["window"] = p.nextWindow
 	s.emit(api.InventoryOpened, p.room, p, data)
 	t := "win"

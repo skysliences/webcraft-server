@@ -1,7 +1,10 @@
 // Package plugin is the public Mcraft plugin SDK and wire protocol (API v1).
 package plugin
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const APIVersion = 1
 
@@ -101,6 +104,19 @@ func (e *Event) Cancel(reason string) {
 	}
 }
 func (e *Event) String(key string) string { v, _ := e.Data[key].(string); return v }
+func (e *Event) Bool(key string) bool {
+	switch v := e.Data[key].(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(v, "true") || v == "1"
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	}
+	return false
+}
 func (e *Event) Number(key string) float64 {
 	switch v := e.Data[key].(type) {
 	case float64:

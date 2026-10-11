@@ -48,7 +48,7 @@ func (s *Server) keepsContents(b int) bool { return s.nameOf(b) == "Shulker Box"
 func (s *Server) spillContainer(r *Room, key uint64, c *Container) {
 	delete(r.Containers, key)
 	for other := range r.Peers {
-		if other.window != nil && other.window.Key == key {
+		if other.window != nil && (other.window.Key == key || other.window.Key2 == key) {
 			s.closeWindow(other)
 			other.json(map[string]any{"t": "wclose", "w": other.nextWindow})
 		}

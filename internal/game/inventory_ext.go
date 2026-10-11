@@ -18,6 +18,8 @@ func windowSize(kind string) int {
 		return 3
 	case "dispenser", "dropper":
 		return 9
+	case "large_chest":
+		return 54
 	case "chest", "ender":
 		return 27
 	case "ench":
