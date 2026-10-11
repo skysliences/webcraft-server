@@ -952,7 +952,7 @@ func (s *Server) syncTransportFor(p *Peer) {
 	if rt := p.room.rt().fishing; rt != nil {
 		for _, b := range rt.bobbers {
 			if transportVisible(p, b.X, b.Z) || b.OwnerID == p.id {
-				bobbers = append(bobbers, map[string]any{"id": b.ID, "owner": b.OwnerID, "x": b.X - float64(p.originX), "y": b.Y, "z": b.Z - float64(p.originZ), "bite": b.BiteTicks, "inWater": b.InWater})
+				bobbers = append(bobbers, map[string]any{"id": b.ID, "owner": b.OwnerID, "x": b.X - float64(p.originX), "y": b.Y, "z": b.Z - float64(p.originZ), "bite": b.BiteTicks, "hooked": b.HookedTicks > 0, "inWater": b.InWater})
 			}
 		}
 	}

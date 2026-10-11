@@ -18,11 +18,12 @@ type FishingBobber struct {
 	VY        float64 `json:"vy"`
 	VZ        float64 `json:"vz"`
 	InWater   bool    `json:"inWater"`
-	WaitTicks int     `json:"waitTicks"`
-	BiteTicks int     `json:"biteTicks"`
-	Slot      int     `json:"slot"`
-	Rod       *Stack  `json:"rod"`
-	age       int
+	WaitTicks   int     `json:"waitTicks"`
+	BiteTicks   int     `json:"biteTicks"`
+	HookedTicks int     `json:"hookedTicks"`
+	Slot        int     `json:"slot"`
+	Rod         *Stack  `json:"rod"`
+	age         int
 }
 type fishingRuntime struct{ bobbers map[uint16]*FishingBobber }
 
@@ -147,7 +148,7 @@ func (s *Server) reelFishing(p *Peer, b *FishingBobber) (committed bool) {
 	slot := p.state.Inv.Selected
 	stacks := Stacks{}
 	xpAmount, wear := 0, 0
-	if b.InWater && b.BiteTicks > 0 {
+	if b.InWater && (b.BiteTicks > 0 || b.HookedTicks > 0) {
 		stacks = append(stacks, s.fishingLoot(r, b))
 		xpAmount = 1 + s.rng.Intn(5)
 		wear = 1
@@ -268,7 +269,13 @@ func (s *Server) tickFishing(r *Room) {
 			b.VY = 0
 			b.VX *= .8
 			b.VZ *= .8
-			if b.BiteTicks > 0 {
+			if b.HookedTicks > 0 {
+				b.HookedTicks--
+				if b.HookedTicks == 0 {
+					b.WaitTicks = 60 + s.rng.Intn(120)
+					soundAt(r, "entity.fishing_bobber.splash", b.X, b.Y, b.Z, nil)
+				}
+			} else if b.BiteTicks > 0 {
 				b.BiteTicks--
 			} else if b.WaitTicks > 1 {
 				b.WaitTicks--
@@ -285,7 +292,7 @@ func (s *Server) tickFishing(r *Room) {
 					b.WaitTicks = 20
 				}
 			}
-			if b.BiteTicks == 0 && b.WaitTicks == 0 {
+			if b.HookedTicks == 0 && b.BiteTicks == 0 && b.WaitTicks == 0 {
 				b.WaitTicks = 60 + s.rng.Intn(120)
 			}
 		} else {
@@ -316,6 +323,23 @@ func init() {
 		held := s.heldItem(p)
 		if held == nil || held.ID != itemFishingRod {
 			return false
+		}
+		if m.S == 1 {
+			if b := fishingState(p.room).bobbers[p.id]; b != nil && b.InWater && b.BiteTicks > 0 {
+				b.HookedTicks = 300
+				b.BiteTicks = 0
+				s.syncTransport(p.room)
+			}
+			return true
+		}
+		if m.S == 2 {
+			if b := fishingState(p.room).bobbers[p.id]; b != nil {
+				b.HookedTicks = 0
+				b.BiteTicks = 0
+				b.WaitTicks = 60 + s.rng.Intn(120)
+				s.syncTransport(p.room)
+			}
+			return true
 		}
 		if m.S == 0 {
 			s.useFishingRod(p, nil, false)
