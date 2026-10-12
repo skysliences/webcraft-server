@@ -866,3 +866,40 @@ SDK `e.PlayerTransfer()` 返回脱离事件数据的只读快照：保留旧 `fr
   - **阶段二（双方锁定后弹出同意按钮）**：**当两边用户都点击确认锁定之后**，面板中央醒目弹出【★ 双方出价已锁定！是否同意进行最终交易？★】确认弹窗与金色【同意交易】大按钮。
   - **原子事务结算**：两边用户均点击【同意交易】后，服务端在单个事务中原子完成金币互转与物品互换，播放经验升级音效并关闭面板，向双方聊天框发送结算清单；中途任何一方取消或掉线，交易物品全额无损退回背包。
 
+
+## 头顶名牌控制与顶部图片称号系统
+
+### 1. 功能概述
+
+系统支持服务端与插件统一控制玩家头顶名称标签（Nametag）的前缀（Prefix）、后缀（Suffix）、显示名称（DisplayName）以及正上方的**图片徽章与文字称号系统（Title System）**。
+- **名牌前缀与后缀**：完全支持 Minecraft 经典颜色代码（`§0`~`§f`, `§r`, `&0`~`&f`），如 `§6[VIP] §fsky §a[Lv.99]§r`。
+- **顶部图片称号系统**：在玩家头顶名字正上方居中渲染半透明发光胶囊底框，展示精美图片/像素徽章（Icon/Badge）及专属称号文字。
+  - **内置 10 款经典像素徽章**（零延迟即开即用）：`crown`（金色皇冠）、`dragon`（末影龙印）、`vip`/`star`（璀璨之星）、`sword`（钻石神剑）、`shield`（守卫神盾）、`diamond`（璀璨钻石）、`fire`（烈焰流光）、`heart`（荣耀之心）、`builder`（工匠神锤）、`wings`（光辉天使之翼）。
+  - **自定义图片 URL 支持**：支持传入 HTTP/HTTPS 外部图片地址或本地图片路径，客户端自动异步请求加载并缓存渲染。
+- **多视角支持**：不仅其他联机玩家可见，当玩家按 F5 切换到第三人称视角时，头顶亦会实时渲染自身的称号与前后缀。
+- **数据持久化**：玩家或管理员设置的名牌与称号持久化保存于 SQLite 数据库（`player_nametags` 表），断线重连与服务器重启数据不丢失。
+
+### 2. 指令支持
+
+- `/prefix [玩家] <前缀>`：设置前缀文本（支持颜色代码，普通玩家可设置自己，管理员可为他人设置）。
+- `/suffix [玩家] <后缀>`：设置后缀文本（支持颜色代码）。
+- `/title [玩家] <图标> [称号文字]`：设置顶部图片称号（如 `/title crown 荣耀王者` 或 `/title dragon 末影终结者`）。
+- `/nametag clear [玩家]`：清空名牌与称号。
+- `/nametag info [玩家]`：查看名牌与称号当前配置状态。
+
+### 3. 插件扩展事件与动作
+
+- **`player.nametag.render` (`api.PlayerNametagRendering`)**：
+  - **触发时机**：当玩家加入游戏或更新名牌时，服务端触发生命周期渲染事件。
+  - **可修改字段**：`prefix`（前缀）、`suffix`（后缀）、`displayName`（显示名称）、`nameColor`（名称基色）、`title`（称号文本）、`titleColor`（称号颜色）、`titleIcon`（称号图片/徽章）、`titleAnimation`（动画类型）。
+  - **只读字段**：`player`（玩家名称）、`id`（实体ID）、`account`（账号SID）、`isOp`（是否为管理员）。
+- **`player.nametag.changed` (`api.PlayerNametagChanged`)**：
+  - **触发时机**：玩家名牌或称号成功变动后触发广播与通知（只读监控）。
+- **插件动作（Action）**：
+  - 动作类型：`set_nametag`。
+  - SDK 接口：
+    - `c.SetPlayerNametag(worldId, playerId, prefix, suffix)`
+    - `c.SetPlayerNametagFor(worldId, playerId, prefix, suffix, title, titleIcon)`
+    - `c.SetPlayerNametagFull(worldId, playerId, action)`
+  - 示例插件参见 `backend/examples/titles/`。
+

@@ -344,6 +344,20 @@ func (s *Server) applyAction(a api.Action) {
 				"id": a.Reason,
 			})
 		}
+	case "set_nametag":
+		if p != nil && a.Nametag != nil {
+			info := &NametagInfo{
+				Prefix:         a.Nametag.Prefix,
+				Suffix:         a.Nametag.Suffix,
+				DisplayName:    a.Nametag.DisplayName,
+				NameColor:      a.Nametag.NameColor,
+				Title:          a.Nametag.Title,
+				TitleColor:     a.Nametag.TitleColor,
+				TitleIcon:      a.Nametag.TitleIcon,
+				TitleAnimation: a.Nametag.TitleAnimation,
+			}
+			s.setPlayerNametag(p, info, true)
+		}
 	case "open_container":
 		if p != nil && number(a.X, r.minCoord(), r.maxCoord()) && number(a.Y, 0, 127) && number(a.Z, r.minCoord(), r.maxCoord()) {
 			k := blockKey(int(a.X), int(a.Y), int(a.Z))

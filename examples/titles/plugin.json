@@ -1,0 +1,16 @@
+{
+  "id": "player-titles",
+  "name": "Player Titles & Nametag Plugin",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "player-titles",
+  "enabled": true,
+  "description": "称号与名牌插件：根据玩家身份/权限动态配置头顶称号、专属图片徽章、炫彩前缀与后缀",
+  "config": {
+    "defaultPrefix": "§7[冒险家]§r ",
+    "opPrefix": "§c[管理员]§r ",
+    "opTitle": "★ 秩序守护者 ★",
+    "opIcon": "shield",
+    "opTitleColor": "#ff5555"
+  }
+}

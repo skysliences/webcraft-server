@@ -642,6 +642,7 @@ type Peer struct {
 	sessionHash       string
 	attributes        map[string]float64
 	ping              int
+	nametag           *NametagInfo
 }
 type digState struct {
 	X, Y, Z, Block, Held int
@@ -765,7 +766,18 @@ func (p *Peer) close(code int) {
 	p.closed = true
 }
 func (p *Peer) public() map[string]any {
-	return map[string]any{"id": p.id, "name": p.name, "h": nil, "p": nil, "owner": p.owner, "beaten": false}
+	out := map[string]any{"id": p.id, "name": p.name, "h": nil, "p": nil, "owner": p.owner, "beaten": false}
+	if p.nametag != nil {
+		out["prefix"] = p.nametag.Prefix
+		out["suffix"] = p.nametag.Suffix
+		out["displayName"] = p.nametag.DisplayName
+		out["nameColor"] = p.nametag.NameColor
+		out["title"] = p.nametag.Title
+		out["titleColor"] = p.nametag.TitleColor
+		out["titleIcon"] = p.nametag.TitleIcon
+		out["titleAnimation"] = p.nametag.TitleAnimation
+	}
+	return out
 }
 func broadcast(r *Room, v any, except *Peer) {
 	for p := range r.Peers {
@@ -1011,6 +1023,7 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 	p.setOrigin()
 	p.peakY = state.Y
 	s.prepareStateView(p)
+	s.renderPlayerNametag(p)
 	welcome := map[string]any{"t": "welcome", "id": p.id, "you": p.public(), "players": others, "owner": p.owner, "creator": false, "room": r.info(), "st": state, "time": r.root().Time}
 	welcome["op"], welcome["permissions"], welcome["canGamemode"] = s.isOperator(p.sid), s.permissionNodes(p.sid), s.canGameCommand(p, "server.gamemode")
 	if r.usesSurvival() {

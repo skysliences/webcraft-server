@@ -71,6 +71,9 @@ func findTestEngineFile() string {
 		"../../../public/engine.wasm",
 		"../../public/engine.wasm",
 		"../public/engine.wasm",
+		"../../../../public/engine.wasm",
+		"../../../../WebCraft/public/engine.wasm",
+		"../../WebCraft/public/engine.wasm",
 	}
 	for _, c := range candidates {
 		if _, err := os.Stat(c); err == nil {

@@ -74,6 +74,20 @@ func initEconomyDB(dataDir string) (*EconomyDB, error) {
 	);
 	CREATE INDEX IF NOT EXISTS idx_tx_from ON transactions(from_account);
 	CREATE INDEX IF NOT EXISTS idx_tx_to ON transactions(to_account);
+
+	CREATE TABLE IF NOT EXISTS player_nametags (
+		account_id TEXT PRIMARY KEY,
+		player_name TEXT NOT NULL,
+		prefix TEXT NOT NULL DEFAULT '',
+		suffix TEXT NOT NULL DEFAULT '',
+		display_name TEXT NOT NULL DEFAULT '',
+		name_color TEXT NOT NULL DEFAULT '',
+		title TEXT NOT NULL DEFAULT '',
+		title_color TEXT NOT NULL DEFAULT '',
+		title_icon TEXT NOT NULL DEFAULT '',
+		title_animation TEXT NOT NULL DEFAULT '',
+		updated_at INTEGER NOT NULL
+	);
 	`
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
@@ -384,4 +398,68 @@ func (e *EconomyDB) Transfer(fromID, toID, fromName, toName string, amount float
 		return 0, 0, err
 	}
 	return newFromBal, newToBal, nil
+}
+
+// GetNametag retrieves the persistent nametag info for an account.
+func (e *EconomyDB) GetNametag(accountID string) (*NametagInfo, error) {
+	if e == nil || e.db == nil {
+		return nil, errors.New("database not initialized")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var info NametagInfo
+	var playerName string
+	var updatedAt int64
+	row := e.db.QueryRow(`SELECT prefix, suffix, display_name, name_color, title, title_color, title_icon, title_animation, player_name, updated_at FROM player_nametags WHERE account_id = ?`, accountID)
+	err := row.Scan(&info.Prefix, &info.Suffix, &info.DisplayName, &info.NameColor, &info.Title, &info.TitleColor, &info.TitleIcon, &info.TitleAnimation, &playerName, &updatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+// SaveNametag inserts or updates the persistent nametag info for an account.
+func (e *EconomyDB) SaveNametag(accountID, playerName string, info *NametagInfo) error {
+	if e == nil || e.db == nil {
+		return errors.New("database not initialized")
+	}
+	if info == nil {
+		return e.ClearNametag(accountID)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	now := time.Now().Unix()
+	_, err := e.db.Exec(`
+		INSERT INTO player_nametags (account_id, player_name, prefix, suffix, display_name, name_color, title, title_color, title_icon, title_animation, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(account_id) DO UPDATE SET
+			player_name = excluded.player_name,
+			prefix = excluded.prefix,
+			suffix = excluded.suffix,
+			display_name = excluded.display_name,
+			name_color = excluded.name_color,
+			title = excluded.title,
+			title_color = excluded.title_color,
+			title_icon = excluded.title_icon,
+			title_animation = excluded.title_animation,
+			updated_at = excluded.updated_at
+	`, accountID, playerName, info.Prefix, info.Suffix, info.DisplayName, info.NameColor, info.Title, info.TitleColor, info.TitleIcon, info.TitleAnimation, now)
+	return err
+}
+
+// ClearNametag deletes the persistent nametag info for an account.
+func (e *EconomyDB) ClearNametag(accountID string) error {
+	if e == nil || e.db == nil {
+		return errors.New("database not initialized")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	_, err := e.db.Exec(`DELETE FROM player_nametags WHERE account_id = ?`, accountID)
+	return err
 }

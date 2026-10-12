@@ -177,6 +177,10 @@ const (
 	TradeCompleting = "trade.complete.before"
 	TradeCompleted  = "trade.completed"
 	TradeCancelled  = "trade.cancelled"
+
+	// 玩家头顶名牌与称号系统事件
+	PlayerNametagRendering = "player.nametag.render"
+	PlayerNametagChanged   = "player.nametag.changed"
 )
 
 func extensionEvents() []EventSpec {
@@ -221,6 +225,8 @@ func extensionEvents() []EventSpec {
 		EconomyBalanceChanging, EconomyBalanceChanged, EconomyPaying, EconomyPaid,
 		TradeRequesting, TradeRequested, TradeStarting, TradeStarted,
 		TradeCompleting, TradeCompleted, TradeCancelled,
+		// 玩家名牌与图片称号事件
+		PlayerNametagRendering, PlayerNametagChanged,
 	}
 	mutable := map[string][]string{
 		TNTPriming:               {"fuseTicks"},
@@ -235,9 +241,10 @@ func extensionEvents() []EventSpec {
 		ScoreboardRendering:      {"title", "enabled", "entries", "footer", "objective"},
 		EconomyBalanceChanging:   {"amount"},
 		EconomyPaying:            {"amount"},
+		PlayerNametagRendering:   {"prefix", "suffix", "displayName", "nameColor", "title", "titleColor", "titleIcon", "titleAnimation"},
 	}
 	for _, name := range names {
-		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering
+		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering || name == PlayerNametagRendering
 		spec := EventSpec{Name: name, Cancellable: before, Mutable: mutable[name]}
 		if name == PlayerDimensionChanging || name == PlayerDimensionChanged {
 			spec.Fields = playerTransferFields()

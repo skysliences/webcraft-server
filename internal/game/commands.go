@@ -45,6 +45,10 @@ var commandCatalog = []commandDef{
 	{Name: "pay", Usage: "/pay <玩家名或ID> <金额>", Description: "向指定玩家转账金币", NeedOP: false},
 	{Name: "eco", Usage: "/eco <give|take|set|bal> <玩家> [金额]", Description: "管理员经济管理（加钱/扣钱/设余额）", NeedOP: true},
 	{Name: "trade", Usage: "/trade <玩家名或ID> 或 /trade <accept|deny|cancel>", Description: "发起或响应面对面安全交易面板", NeedOP: false},
+	{Name: "prefix", Usage: "/prefix [玩家] <前缀文本>", Description: "设置玩家头顶名称前缀（支持颜色代码）", NeedOP: false},
+	{Name: "suffix", Usage: "/suffix [玩家] <后缀文本>", Description: "设置玩家头顶名称后缀（支持颜色代码）", NeedOP: false},
+	{Name: "title", Usage: "/title [玩家] <图标> [称号文字]", Description: "设置玩家头顶图片称号（支持内置图标或图片URL及文字）", NeedOP: false},
+	{Name: "nametag", Usage: "/nametag <clear|info> [玩家]", Description: "查询或重置玩家头顶名牌与称号", NeedOP: false},
 }
 
 // nearestPlayer returns the closest player to p (or p itself if alone).
@@ -412,6 +416,9 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 
 	case "trade":
 		return s.handleTradeCommand(p, parts)
+
+	case "prefix", "suffix", "title", "nametag":
+		return s.handleNametagCommands(p, strings.ToLower(name), parts)
 	}
 
 	return false, false

@@ -153,6 +153,38 @@ func (c *Context) OpenContainer(worldID string, playerID uint16, x, y, z int) {
 	})
 }
 
+// SetPlayerNametag 向指定玩家设置头顶名称前缀、后缀及图片称号
+func (c *Context) SetPlayerNametag(worldID string, playerID uint16, prefix, suffix, title, titleIcon string) {
+	c.Actions = append(c.Actions, Action{
+		Type:     "set_nametag",
+		WorldID:  worldID,
+		PlayerID: playerID,
+		Nametag: &NametagAction{
+			Prefix:    prefix,
+			Suffix:    suffix,
+			Title:     title,
+			TitleIcon: titleIcon,
+		},
+	})
+}
+
+// SetPlayerNametagFor 便捷方法：为当前事件触发者玩家设置头顶名牌与称号
+func (c *Context) SetPlayerNametagFor(e *Event, prefix, suffix, title, titleIcon string) {
+	if e != nil && e.World != nil && e.Player != nil {
+		c.SetPlayerNametag(e.World.ID, e.Player.ID, prefix, suffix, title, titleIcon)
+	}
+}
+
+// SetPlayerNametagFull 完整配置玩家头顶名牌各属性（前缀、后缀、显示名、颜色、称号、图片、动画）
+func (c *Context) SetPlayerNametagFull(worldID string, playerID uint16, info NametagAction) {
+	c.Actions = append(c.Actions, Action{
+		Type:     "set_nametag",
+		WorldID:  worldID,
+		PlayerID: playerID,
+		Nametag:  &info,
+	})
+}
+
 type Handler func(*Context, *Event) error
 type CommandHandler func(*Context, *Event, []string) error
 type listener struct {

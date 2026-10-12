@@ -168,6 +168,19 @@ type Action struct {
 	Lines             []string            `json:"lines,omitempty"`
 	Blocks            []BlockChange       `json:"blocks,omitempty"`
 	CustomUI          *CustomUIDefinition `json:"customUi,omitempty"`
+	Nametag           *NametagAction      `json:"nametag,omitempty"`
+}
+
+// NametagAction 玩家头顶名牌前缀、后缀及图片称号定义
+type NametagAction struct {
+	Prefix         string `json:"prefix,omitempty"`         // 头顶名称前缀（支持颜色代码，如 §6[VIP]§r ）
+	Suffix         string `json:"suffix,omitempty"`         // 头顶名称后缀（支持颜色代码，如  §a[Lv.99]§r）
+	DisplayName    string `json:"displayName,omitempty"`    // 自定义显示名字（可选）
+	NameColor      string `json:"nameColor,omitempty"`      // 名字颜色代码
+	Title          string `json:"title,omitempty"`          // 顶部称号文本（如 ★ 屠龙勇士 ★）
+	TitleColor     string `json:"titleColor,omitempty"`     // 称号文本颜色（如 #f1c40f 或 §6）
+	TitleIcon      string `json:"titleIcon,omitempty"`      // 称号图片图标（内置如 crown, dragon, vip 等，或图片URL）
+	TitleAnimation string `json:"titleAnimation,omitempty"` // 称号动效（可选）
 }
 
 // CustomUIDefinition 插件向客户端推送的自定义界面表单与弹窗定义
