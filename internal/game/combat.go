@@ -35,7 +35,7 @@ func damageCause(reason string) string {
 		return "drowning"
 	case "摔落了。":
 		return "fall"
-	case "饿倒了。":
+	case "饿倒了。", "饿死了。":
 		return "starvation"
 	case "sunlight":
 		return "sunlight"

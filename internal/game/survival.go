@@ -638,6 +638,10 @@ func (s *Server) life(p *Peer) {
 	if s.lifeExt(p) {
 		return
 	}
+	if st.Health <= 0 {
+		s.damage(p, 1, "饿死了。")
+		return
+	}
 	if st.Y < -20 {
 		s.damage(p, 20, "掉出了世界。")
 		return
@@ -703,8 +707,19 @@ func (s *Server) life(p *Peer) {
 			if s.heal(p, 1, "regeneration") {
 				st.Exhaustion += 6
 			}
-		} else if st.Food == 0 && st.Health > 1 {
-			s.damage(p, 1, "饿倒了。")
+		} else if st.Food == 0 {
+			diff := s.difficulty(p.room)
+			minHealth := 0.0
+			if diff == "easy" {
+				minHealth = 10.0
+			}
+			if st.Health > minHealth {
+				reason := "饿倒了。"
+				if st.Health <= 1 {
+					reason = "饿死了。"
+				}
+				s.damage(p, 1, reason)
+			}
 		}
 	}
 	p.room.Dirty = true
