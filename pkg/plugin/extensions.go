@@ -162,6 +162,21 @@ const (
 
 	// 插件自定义界面交互
 	PlayerCustomUISubmit = "player.custom_ui.submit"
+
+	// 经济系统事件
+	EconomyBalanceChanging = "economy.balance.before"
+	EconomyBalanceChanged  = "economy.balance.changed"
+	EconomyPaying          = "economy.pay.before"
+	EconomyPaid            = "economy.pay"
+
+	// 交易系统事件
+	TradeRequesting = "trade.request.before"
+	TradeRequested  = "trade.requested"
+	TradeStarting   = "trade.start.before"
+	TradeStarted    = "trade.started"
+	TradeCompleting = "trade.complete.before"
+	TradeCompleted  = "trade.completed"
+	TradeCancelled  = "trade.cancelled"
 )
 
 func extensionEvents() []EventSpec {
@@ -202,6 +217,10 @@ func extensionEvents() []EventSpec {
 		AnimalBreeding, AnimalBred, AnimalTaming, AnimalTamed, AnimalShearing, AnimalSheared,
 		PlayerAnticheatViolation,
 		ScoreboardRendering,
+		// 经济与交易事件
+		EconomyBalanceChanging, EconomyBalanceChanged, EconomyPaying, EconomyPaid,
+		TradeRequesting, TradeRequested, TradeStarting, TradeStarted,
+		TradeCompleting, TradeCompleted, TradeCancelled,
 	}
 	mutable := map[string][]string{
 		TNTPriming:               {"fuseTicks"},
@@ -214,10 +233,16 @@ func extensionEvents() []EventSpec {
 		ItemDropping:             {"count"},
 		AnvilUsing:               {"name"},
 		ScoreboardRendering:      {"title", "enabled", "entries", "footer", "objective"},
+		EconomyBalanceChanging:   {"amount"},
+		EconomyPaying:            {"amount"},
 	}
 	for _, name := range names {
 		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering
-		out = append(out, EventSpec{Name: name, Cancellable: before, Mutable: mutable[name]})
+		spec := EventSpec{Name: name, Cancellable: before, Mutable: mutable[name]}
+		if name == PlayerDimensionChanging || name == PlayerDimensionChanged {
+			spec.Fields = playerTransferFields()
+		}
+		out = append(out, spec)
 	}
 	return out
 }

@@ -814,3 +814,55 @@ Go 多人服参考 [Spigot 的 mob-spawn-range 配置](https://www.spigotmc.org/
 SDK 提供 `Event.MobLifecycle()` 独立快照、`MobSpawningConfig` 和 `Context.SpawnPersistentMob(world, type, x, y, z)`；原 `SpawnMob` 不变，新动作进入同一校验和插件保护入口。`GET /api/server` 暴露当前 `mobSpawning` 配置，`GET /api/events` 发布新增字段。`world-policy` 示例新增默认空的 `blockedNaturalMobTypes`、默认关闭的 `preserveDistantMobs`，并用 Monitor 审计成功生成和清除。
 
 世界存档版本升至 9，新增可选 `spawnReason/persistent/inactiveTicks`。旧动物即使没有持久标记也保留远距保护。第一次覆盖版本 8 或更旧存档前，保留原始文件到 `.json.pre-mob-spawning-vN.bak`；备份失败时不覆盖。实体恢复使用 4096 的存档校验上限，降低运行安全上限不会删除或截断已有实体，只拒绝新增。账号、背包、世界和玩家进度不变。相关验证：`go test -race ./...`、`npm run plugins:build`、`npm run plugins:smoke`。
+
+
+## 维度传送指令与插件动作
+
+OP（或具有 `server.admin` 权限的玩家）可使用 `/dimension <overworld|nether|end> [玩家]`，简写 `/dim`。例如 `/dim end` 进入末地，`/dim 地狱` 进入下界，`/dim 普通世界` 回主世界；`/dim nether 玩家名` 可传送同一世界任意维度中的在线玩家。支持 `@s`、账号 ID、`minecraft:overworld`、`minecraft:the_nether`、`minecraft:the_end`。控制台选择世界和在线玩家后可执行；单世界服也支持 `dimension end 玩家名` 自动选择目标。
+
+该指令在当前世界组内切换维度，落点为目标维度出生点附近的安全位置。搜索水平半径通常最多 8 格，下界最多 64 格以覆盖封闭洞穴，使用真实方块（包含玩家修改），要求实体脚部和头部为空气、脚下为实心地面，避开岩浆方块；下界落点低于基岩顶层。不会为已有末地出生平台重建/清空建筑；找不到位置会失败并提示整理出生区域。它不会触发击败末影龙或观看终末之诗。游戏背包、名称、Lore、属性、自定义数据、生命、经验和效果继续保留，维度与坐标沿用原玩家存档格式，重连时按该维度恢复。客户端聊天支持指令、维度与玩家补全。
+
+沿用 API v1 `player.dimension.before/changed` 与 `player.teleport.before/teleported`。两个 before 均可取消，无可修改字段；只有完成位置和维度切换后发成功事件。乘坐载具或垂钓时还经过原有离开载具/收杆 before，取消时保持原维度、坐标和载具状态，命令也不会发 `command.executed`。跨维度 `/tp` 同样传递取消结果。
+
+SDK `e.PlayerTransfer()` 返回脱离事件数据的只读快照：保留旧 `fromDimension/dimension/x/y/z/reason`，新增 `fromWorldId/worldId/fromX/fromY/fromZ/actor/actorPlayer/target/targetAccountId/stack/source`。`e.Player` 始终是被传送玩家，包含完整背包元数据；`stack` 是其手持物品完整快照。命令原因是 `command` 或 `console`，插件为 `plugin`，旧传送门/复活仍保留 `dimension_transfer`。字段目录由 SDK 同步公开到 `GET /api/events`；Monitor 只读，其取消、字段修改和动作均被忽略。
+
+`c.ChangeDimension(e, "nether")` 发送 `change_dimension` 动作（`worldId` 为玩家当前维度，`playerId` 为目标在线玩家，`dimension` 为目标维度），使用相同安全落点和插件保护入口。旧 `c.Teleport` 动作保持当前维度内的坐标传送语义。示例 `world-policy` 可通过可选 `blockedDimensions: ["end"]` 禁止进入指定维度，并审计 `PlayerDimensionChanged` 完成事件。
+
+适用生存世界和无限世界（包括玩家创造模式）；旧版有限创造世界沿用单维度客户端，指令会明确拒绝，不会转移玩家到无法显示的地形。
+
+
+## 经济系统与玩家安全交易系统
+
+### 1. 经济持久化与转账
+
+服务端集成基于 SQLite（`modernc.org/sqlite`，纯 Go 无 CGO 依赖）的持久化经济系统，数据安全落盘于 `<dataDir>/economy.db`。支持高并发事务与 WAL 日志模式。
+- **初始资金**：新玩家首次进服自动创建账户，赠送初始金币 $1000.00。
+- **玩家指令**：
+  - `/balance`（简写 `/bal` 或 `/money`）：查询当前金币余额；`/balance <玩家名>` 查询指定玩家余额。
+  - `/pay <玩家名或ID> <金额>`：向在线玩家转账。执行前触发 `economy.pay.before` 事件。
+- **OP 管理指令**：
+  - `/eco give <玩家> <金额>`：管理员向玩家发放金币。
+  - `/eco take <玩家> <金额>`：管理员扣除玩家金币。
+  - `/eco set <玩家> <金额>`：管理员设置玩家金币余额。
+  - `/eco bal <玩家>`：查询指定玩家金币余额。
+- **插件扩展事件**：
+  - `economy.balance.before` / `economy.balance.changed`：余额变更前后事件，before 可取消，可修改 `amount`。
+  - `economy.pay.before` / `economy.pay`：转账前后事件，before 可取消（用于风控冻结），可修改 `amount`（用于征收转账税或手续费）。插件示例见 `examples/economy`。
+
+### 2. 玩家面对面安全交易系统
+
+支持玩家之间通过图形面板进行物品与金币的安全交换，具备完善的防欺诈掉包保护与原子事务结算机制。
+- **邀请流程**：
+  - 玩家输入 `/trade <玩家名或ID>` 向目标玩家发送交易邀请。
+  - 被邀请玩家屏幕右上角弹出 Minecraft 浮雕风格交易邀请卡片，显示：“玩家 XX (ID: 1) 邀请你进行交易”，并提供【接受交易】与【拒绝】按钮（或在聊天框输入 `/trade accept` / `/trade deny`），邀请有效期 60 秒。
+- **交易面板（物品与金钱双向出价）**：
+  - 接受邀请后，双方同步打开 Minecraft 风格全屏半透明交易面板。
+  - **双栏出价区**：左侧为“我的出价”（8 个物品槽位 + 金币出价输入框），右侧为“对方出价”（8 个物品槽位 + 对方出资金额展示）。
+  - **物品交易**：面板下方展示玩家自身背包（36格），点击或拖拽背包物品即可上架至交易栏；点击已上架的物品可取回背包。
+  - **金钱出价与实时校验**：玩家在输入框输入出资金额前，客户端与服务端双重校验玩家是否有足够余额。若超出余额，输入框红字高亮并禁用出资按钮，服务端亦做强制预校验拒绝超出金额。
+- **两阶段确认与防欺诈机制 (Anti-Scam)**：
+  - **阶段一（锁定出价）**：双方输入金额并放置好物品后，各自点击【确认出价 (锁定)】。锁定后物品与金额被封存，防止误触。
+  - **掉包防欺诈自动重置**：若在交易过程中任何一方尝试修改、添加、取回物品或变更出资金额，服务端的双重锁定状态与同意状态立即被强制复位为 `false`，界面恢复未锁定状态，彻底杜绝掉包欺诈。
+  - **阶段二（双方锁定后弹出同意按钮）**：**当两边用户都点击确认锁定之后**，面板中央醒目弹出【★ 双方出价已锁定！是否同意进行最终交易？★】确认弹窗与金色【同意交易】大按钮。
+  - **原子事务结算**：两边用户均点击【同意交易】后，服务端在单个事务中原子完成金币互转与物品互换，播放经验升级音效并关闭面板，向双方聊天框发送结算清单；中途任何一方取消或掉线，交易物品全额无损退回背包。
+

@@ -159,6 +159,7 @@ type Action struct {
 	Value             bool                `json:"value,omitempty"`
 	Difficulty        string              `json:"difficulty,omitempty"`
 	GameMode          string              `json:"gamemode,omitempty"`
+	Dimension         string              `json:"dimension,omitempty"`
 	Effect            string              `json:"effect,omitempty"`
 	Duration          int                 `json:"duration,omitempty"`
 	Amplifier         int                 `json:"amplifier,omitempty"`
@@ -364,6 +365,9 @@ func Events() []EventSpec {
 		}
 		if name == EntitySpawning || name == EntitySpawned || name == EntityDespawning || name == EntityDespawned {
 			spec.Fields = mobLifecycleFields()
+		}
+		if name == PlayerTeleporting || name == PlayerTeleported {
+			spec.Fields = playerTransferFields()
 		}
 		out = append(out, spec)
 	}

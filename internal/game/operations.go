@@ -836,7 +836,7 @@ func (s *Server) console(actor, command, world, player string) (any, error) {
 		if world == "" && s.config.SingleWorld {
 			world = s.worldBinding.WorldID
 		}
-		if player == "" && (name == "gamemode" || name == "gm") && len(args) == 2 {
+		if player == "" && (name == "gamemode" || name == "gm" || name == "dimension" || name == "dim") && len(args) == 2 {
 			player = args[1]
 		}
 		r := s.rooms[world]

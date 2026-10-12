@@ -1,0 +1,13 @@
+{
+  "id": "economy-audit",
+  "name": "Economy & Trade Audit Plugin",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "economy-audit",
+  "enabled": true,
+  "description": "经济与交易风控审计插件：监听玩家转账和面对面交易事件，提供单笔限额校验、防刷保护和交易日志审计",
+  "config": {
+    "maxSingleTransfer": 100000.0,
+    "notifyTradeCompletion": true
+  }
+}

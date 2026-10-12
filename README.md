@@ -1,97 +1,123 @@
-# WebCraft Game Server（体素游戏专用服务端）
+# Mcraft Go 后端
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.24-blue.svg)](https://golang.org)
+这是独立的 Go 服务，不提供 HTML、贴图或前端 JavaScript。所有玩家使用统一网站客户端，通过 REST 和 WebSocket 连接私人 Go 游戏服；私人服无需运行自己的 Node 前端。本机开发时前端默认 8080，后端默认 8081。统一网站、账号代理与私人服的分别部署见 [CLIENT.md](CLIENT.md)。
 
-> **开源声明**：本项目为开源项目 (Public Repository)，采用 MIT 许可证。
+游戏服默认只运行一个主世界及其下界、末地。玩家在统一网站填写私人 Go 服务地址后，使用固定账号 ID 进入其主世界。通过 `WORLD_ID` 选已有存档；空数据目录自动创建唯一世界并保存绑定，其余存档留存但不开放进入。部署、迁移与备份见 [SINGLE_WORLD.md](SINGLE_WORLD.md)。
 
-WebCraft Game Server 是采用 Go 语言构建的高性能体素沙盒多人游戏服务器。具备强大的实时房间管理、多维度世界流式加载、红石逻辑模拟、A* 3D 生物寻路、方块事件调度与类似 Spigot 的原生插件扩展系统。
+现默认提供独立 Go 核心账号服务 `cmd/mcraft-account`（8082）。设置 `AUTH_ISSUER_URL` 的游戏服使用核心固定 ID，账号注册/密码/名字管理转移到核心；游戏服可用插件增加本服准入。下方旧 register/login/profile 接口仅在兼容模式有效。部署、旧账号迁移、核心接口与事件详见 [IDENTITY.md](IDENTITY.md)。
 
----
+需要 Go 1.24+。在项目根目录运行 `npm run start:backend` 会编译并启动 Go 程序；也可在本目录执行：
 
-## 🌟 核心特性
-
-- **高性能多人体素引擎**：
-  - 基于 Go 语言轻量协程与二进制流式压缩，单服支持百人同屏畅玩。
-  - 增量区块传输（Chunk Streaming），动态 LOD 视野剔除。
-- **完整 Minecraft 核心玩法仿真**：
-  - **红石自动化系统**：红石线信号衰减、红石火把反向门、中继器延时与锁存、活塞推拉方块、红石块与压力板。
-  - **3D 体素 A\* 生物寻路**：僵尸、苦力怕等生物支持绕过坑洞、攀爬阶梯、绕行障碍追逐目标。
-  - **真实物理与重力流体**：沙子/沙砾下落、水/岩浆流动与碰撞、方块破坏掉落物自然抛物线重力下坠。
-  - **统一 RandomTick 调度**：农作物生长、冰雪消融、树叶枯萎、火势蔓延。
-- **Spigot 兼容的插件生态**：
-  - 提供强大的 Go 插件 SDK（`pkg/plugin`）。
-  - 支持 `.before` 意图拦截（可阻止与修改参数）与事件提交完成监听。
-  - 物品完整元数据系统（Lore、属性修饰符、命名空间自定义数据跟随合并与持久化）。
-- **去中心化微服务架构**：
-  - 游戏服务器通过 Ed25519 权威公钥校验玩家身份，无需直连集中式用户数据库，天生支持私服与公服联邦接入。
-- **开箱即用的运维 CLI**：
-  - 内置 `mcraftctl` 命令行工具，提供控制台监控、世界快照备份、权限变更与热重载。
-
----
-
-## 🏗️ 架构概览
-
-```mermaid
-flowchart TD
-    Client["WebCraft Web 客户端 (浏览器)"]
-    Account["WebCraft Account Service (身份认证中心)"]
-    Server["WebCraft Game Server (开源游戏服)"]
-    Plugin["独立插件进程 (Go SDK Plugin)"]
-
-    Client -- "1. 登录并获取签名 Proof" --> Account
-    Client -- "2. WebSocket 加入房间携带 Proof" --> Server
-    Server -- "3. 本地公钥无锁验签" --> Server
-    Server <--> "4. JSON-RPC 事件与批处理" <--> Plugin
+```sh
+go run ./cmd/mcraft
 ```
 
----
+`PROJECT_ROOT` 默认是上级目录。独立二进制部署时设置它，或设置 `DATA_DIR`、`ENGINE_FILE`；后端只需要引擎 WASM 和存档目录。WASM 是现有地形引擎，Go 使用 wazero 执行，规则和联机逻辑全部在 Go 中运行。
 
-## 🛠️ 快速启动
+## 配置
 
-### 1. 编译构建
-```bash
-# 编译游戏主程序与运维管理工具
-go build -o bin/mcraft ./cmd/mcraft
-go build -o bin/mcraftctl ./cmd/mcraftctl
+| 环境变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `BACKEND_HOST` | `127.0.0.1` | 监听地址 |
+| `BACKEND_PORT` | `8081` | 监听端口 |
+| `DATA_DIR` | 项目 `data/` | 持久存档 |
+| `WORLD_ID` | 已保存的绑定 / 旧默认世界 / 唯一存档 | 选择已有主世界；缺失存档停止启动 |
+| `WORLD_NAME` / `WORLD_MODE` | `世界` / `survival` | 仅用于空目录生成新世界，模式可设 `creative` |
+| `ENGINE_FILE` | 优先 `src/client/engine.wasm`，否则 `public/engine.wasm` | 必须与前端引擎一致 |
+| `ALLOWED_ORIGINS` | `http://127.0.0.1:8080,http://localhost:8080` | 允许的前端来源，逗号分隔 |
+| `MAX_PLAYERS` | `64` | 单个世界最大在线人数，范围 1–1000 |
+| `AUTH_COOKIE_SECURE` | `false` | HTTPS 反向代理部署时设为 `true`，登录 Cookie 只经 HTTPS 发送；直接 TLS 请求自动启用 |
+| `AUTH_ISSUER_URL` | 默认 `https://login.ccraft.app`（仅 legacy 留空） | 核心账号服务的公开 HTTPS 地址 |
+| `AUTH_SERVER_ID` | 无 | 核心登记的游戏服务器 ID |
+| `AUTH_PUBLIC_KEY` | 从明确配置的 issuer 发现 | Ed25519 公钥，建议生产环境固定 |
+| `AUTH_CALLBACK_URL` | 无 | 已登记的 Go 回调完整地址 `/api/auth/callback` |
+| `GAME_PUBLIC_URL` | 无 | 已登记的统一游戏客户端网站地址 |
+| `PLUGIN_DIR` | 项目 `plugins/` | 扫描插件 manifest 与可执行入口 |
+| `PLUGIN_TIMEOUT` | `100ms` | 单次事件总预算、命令和关闭回调，范围 10ms–1s；初始化最多 5 秒 |
 
-# 编译示例插件 (可选)
-go build -o plugins/welcome/welcome ./examples/welcome
+首次编译下载锁定在 `go.mod` / `go.sum` 中的依赖，后续启动可复用缓存。npm 启动器读取项目 `.env`，直接启动 Go 时通过环境变量配置。
+
+## 接口
+
+| 方法 | 路径 | 功能 |
+| --- | --- | --- |
+| GET | `/healthz` | 健康状态、在线人数、待保存和失败数量 |
+| GET | `/api/plugins` | 插件版本、加载状态、事件监听与命令 |
+| GET | `/api/events` | 玩法、区块及运营事件与可取消、可修改字段目录 |
+| GET | `/api/online` | 全部世界在线人数 |
+| GET | `/api/server` | 当前服务器公开描述、唯一主世界和进入路径 |
+| GET | `/api/servers?sort=active&show=all&q=` | 列表、搜索、排序；`show=players/open/mine`，`mine` 配合房间 ID 列表 |
+| GET | `/api/auth/me` | 当前账号 `{user: {id,username,name}}`；未登录返回 `{user:null}` |
+| GET | `/api/auth/start` | 中央模式：开始核心授权码 + PKCE 登录 |
+| GET | `/api/auth/callback` | 中央模式：校验状态、交换授权码并验签 |
+| POST | `/api/auth/client` | 统一网站：提交核心 `{proof}`，一次性兑换目标服身份并获得本服令牌 |
+| POST | `/api/auth/server-access` | 中央模式：本服插件注册/登录 `{action,values}` |
+| POST | `/api/auth/register` | JSON `{username,password,legacySid?}`；注册并登录，返回 `{user}` |
+| POST | `/api/auth/login` | JSON `{username,password}`；登录并返回 `{user}` |
+| POST | `/api/auth/profile` | 登录后设置唯一玩家名字，JSON `{name}`；返回 `{user}` |
+| POST | `/api/auth/logout` | 注销当前登录会话，并断开使用该会话的游戏连接 |
+| POST | `/api/rooms` | 单世界模式返回 409；旧 API v1 迁移兼容模式可创建世界 |
+| GET | `/api/rooms/{id}` | 公开世界信息 |
+| GET | `/api/rooms/{id}/stats` | 房主统计，需要登录；旧世界可同时提供 `X-Owner-Key` |
+| WebSocket | `/ws/{id}` | 需要登录且已设置名字，协议版本 4，加入、同步和游戏操作 |
+
+账号接口接受 `application/json`，错误返回 `{error}`。账号为 3–32 位英文字母、数字或下划线，不区分大小写；密码至少 8 个字符、最多 72 个 UTF-8 字节。玩家名字为 2–20 个 Unicode 字母或数字（包括中文）、下划线或短横线，不区分大小写且必须唯一。注册后必须设置名字才能创建或加入世界；游戏使用服务端保存的名字，客户端提交的名字或 SID 不能冒充其他账号。
+
+兼容账号模式的账号与会话保存在 `DATA_DIR/accounts.json`，原子写入、文件权限为 `0600`。密码采用 bcrypt cost 12；会话有效期 30 天，每个账号最多 8 个会话，存档只保留令牌 SHA-256。旧 Cookie 为 HttpOnly、SameSite=Lax；会话过期或注销后游戏连接会断开，重启服务后有效会话仍可使用。注册和登录按请求源 IP 限制为每 10 分钟 30 次，不信任客户端提供的转发 IP。账号存档损坏时停止启动且保留原文件。当前中央模式不在游戏服保存核心密码；统一客户端的本服令牌使用 Bearer 和 WebSocket 子协议。
+
+生产环境统一网站如 `https://play.example.com`，各私人 Go 服务如 `https://private.example.com`。`GAME_PUBLIC_URL` 和 `ALLOWED_ORIGINS` 配置统一网站 origin，`AUTH_CALLBACK_URL` 配置本服 Go 回调；反向代理为本服 API 和 WebSocket 提供 HTTPS。玩家核心 Cookie 只在统一网站的固定账号代理使用，本服令牌按目标 origin / ID 隔离存入 `sessionStorage`，无需第三方 Cookie。密码与令牌不写入 localStorage 或世界链接。静态网站也必须提供固定账号代理和正确的 `config.js`，完整说明见 [CLIENT.md](CLIENT.md)。
+
+玩家数据和新世界房主权限绑定固定账号 ID，改名不会丢失进度，也不会更换插件中的稳定 UID。两个窗口登录同一账号进入同一世界时，新连接接管旧连接。旧世界首次由携带正确房主密钥的已登录玩家进入后，将房主绑定其账号；已绑定世界只认可房主账号，密钥无法转移权限。分享功能只复制普通世界地址。
+
+旧版浏览器 SID 曾是访客进度的凭据。保留原浏览器 localStorage 的用户，首次注册可直接接入旧身份；已有账号登录后加入旧世界，也会一次性绑定该未被认领的访客 SID，并在各世界迁移对应背包、位置和建造归属。已有账号进度优先，不覆盖；旧 SID 一经认领就不能再交给其他账号，任何已注册账号 ID 也不能被认领。WS 的 `hello.sid` 仅用于这项迁移，实际游戏身份始终来自登录会话。
+
+## 已实现玩法
+
+创造模式：多人位置/聊天/方块同步、快捷栏存档、房主重命名、建造权限、踢出、世界重置和撤销最近建造。原有版本 1–8 存档可读取，当前保存为版本 9；升级前保留原文件，新生物生成状态升级备份为同目录 `.json.pre-mob-spawning-vN.bak`。旧账号和掉落升级备份继续保留。未知世界返回 404。撤销按方块最后修改者记录，只恢复其上一状态，原有存档没有修改者历史。
+
+基础生存：主世界地形、按视距加载区块、采集耗时与工具采收校验、地面物品掉落与自动拾取、放置消耗、工具耐久、2×2/3×3 合成、工作台、多人共享箱子、熔炉及燃料、装备、进食、饥饿与恢复、摔落/溺水/熔岩/虚空伤害、玩家近战、死亡和重生。新玩家有 8 个面包，死亡保留背包。`/help` 查看帮助，`/spawn` 返回出生点。背包、容器与地面掉落都会保存。
+
+火把：煤炭或木炭加木棍合成 4 个；服务端校验顶面或侧面支撑、放置朝向及生存物品扣除，拒绝悬空、倒挂和液体中的放置。创造模式允许火把 ID 82 和墙面朝向 ID 83–86，物品栏只选择 ID 82。支撑被移除时，附着火把自动消失；生存模式生成 ID 82 掉落，所有掉落容量在原操作提交前检查，容量不足时整次操作保持原状。多人广播、重新加入和存档恢复继续使用原方块协议。14 级方块光由前端 WASM 引擎按遮挡与距离传播；亮度滑块是各浏览器的显示偏好，不更改服务器世界规则。
+
+破坏方块后先生成物品实体，延迟 600ms 后允许附近存活玩家自动拾取；水平半径为 1.35 格，并检查高度和遮挡。服务端串行提交背包与实体变更，多人靠近时按距离和连接 ID 决定顺序，物品只发放一次。背包满不影响破坏方块；只能装下一部分时，剩余数量留在地上。掉落物有重力、实体方块碰撞和拾取动画，按已加载区块同步生成、移动、数量与消失，重新加入也能看到现存掉落。每个世界上限 2048 个实体，达到上限时拒绝产生新掉落的采集，避免物品丢失。世界有玩家在线时累计寿命，默认 5 分钟消失，离线暂停；寿命、位置、速度和数量随存档恢复。
+
+世界时间：所有模式 20 ticks/s，一天 24,000 ticks；在线推进，离线暂停；welcome 和每秒 time 消息同步时间，客户端插值。`/time query` 公开查询，`/time set day|noon|night|midnight|0-23999` 仅房主可用。
+
+生物生成按怪物/动物分别限额，以玩家周围已加载区块的去重数量缩放，默认基准 70/10、半径 6 区块；默认单人完整范围对应 40/5。自然生成距活跃玩家和世界出生点超过 24 格、距最近玩家不超过 128 格，支持夜晚地表和白天黑暗洞穴。动物需亮度至少 9 的草地；和平难度阻止普通敌对生物各入口生成。动物、村民、宠物、Boss 和持久实体不因远距被清除；普通怪物超 128 格立即尝试清除，32 格外闲置超过 30 秒随机清除，均受插件 before 保护。刷怪蛋、繁殖、刷怪笼和命令不受自然分类限额；所有入口遵循单维度可配置安全上限（默认 1024）。位置、生命、持久标记、生成原因和闲置时间保存到世界；降低安全上限不截断旧实体。配置、事件和实现边界见 [PLUGINS.md](PLUGINS.md#生物生成与清除策略)。
+
+尚未实现农业生长、手动丢弃、掉落物合并、流体推动、门/床等多方块交互、附魔、红石、弓箭、下界、末地和极限模式。手动丢弃操作会保留物品并提示。已有配方数据包含部分后续功能的物品，因此能合成不代表其交互规则已经实现。玩家移动使用客户端物理并由服务器校验坐标范围，尚不是完整的服务端运动模拟或反作弊系统。
+
+每秒原子保存 JSON，退出时再次保存；保存失败保留脏状态继续重试，健康接口返回 503。关闭背包时暂时放不下的物品进入持久恢复队列，腾出空间后自动取回。损坏的 JSON 存档会停止启动，避免静默覆盖。
+
+## 开发和验证
+
+在项目根目录运行：
+
+```sh
+npm run backend:test
+npm run dev:smoke
+npm run world:verify
+npm run build:frontend
 ```
 
-### 2. 启动服务
-```bash
-# 复制配置文件
-cp deployment/server.env.example server.env
+Go 测试使用隔离临时存档和随机端口，包含并发检测、注册/登录/名字唯一性/注销/重启恢复、匿名进度接入和身份伪造拦截、存储失败回滚、原有存档兼容与升级备份、REST/CORS、权限、多人聊天和方块广播、掉落/重力/拾取/背包容量/多人实体广播、持久恢复、采集、合成、容器、熔炼与重生。`npm run plugins:smoke` 会注册隔离测试账号后检查插件命令、权限与存档恢复。
 
-# 启动游戏服务器 (默认监听 8081 端口)
-./deployment/start.sh
-```
+修改客户端物品、采集或配方后，运行 `npm run rules:export` 重新生成 `internal/game/rules.json`，再重启后端。这个文件是构建时的规则数据，没有 Node.js 服务端逻辑。改变引擎后也需重启后端并刷新前端，使两端使用同一份 WASM。
 
----
+## 插件开发
 
-## ⚙️ 核心环境变量（server.env）
+事件总线、Go SDK、独立进程插件加载、命令/权限、周期任务和受校验的游戏动作已实现。插件状态和失败数包含在健康接口中；故障插件的已注册保护性监听继续拒绝对应操作。开发、示例、协议和完整事件清单见 [PLUGINS.md](PLUGINS.md)。
 
-| 配置项 | 默认值 | 作用说明 |
-| :--- | :--- | :--- |
-| `PORT` | `8081` | 游戏服务 WebSocket 与 API 端口 |
-| `DEFAULT_MODE` | `survival` | 默认游戏模式 (`survival` / `creative`) |
-| `SINGLE_WORLD` | `true` | 是否开启单世界归档模式 |
-| `AUTH_PUBLIC_KEY` | `""` | 信任的 WebCraft 账号服务 Ed25519 公钥 (用于微服务验签) |
-| `AUTH_ISSUER_URL` | `https://login.ccraft.app` | 默认账号认证服务地址 |
-| `PLUGIN_DIR` | `./plugins` | 插件加载目录 |
+完整物品元数据、事件目录中的伤害/攻击/回血/耐久扩展、SDK 与示例命令见 [ITEMS.md](ITEMS.md)。存档 v6 首次保存前保留 `.json.pre-item-meta-vN.bak`。
 
----
 
-## 📚 详细技术文档
+无限世界的探索区块由 2 个后台任务读取或准备纯噪声地形（共享最多 64 个准备结果），主线程保留权威状态与插件校验。初次连接优先加载脚下 3×3 区块；其余区块按距离每玩家分批发送（最多 8 块，提交预算约 2ms），玩家停住后也会继续填满视距。视距额外保留两圈提前准备，避免到边界才开始生成。区块文件仍为 MCC v1，现有种子、编辑、容器与元数据不变；缓存回收分批处理，保存失败保留内存状态。
 
-- 📘 [插件开发指南与事件目录 (PLUGINS.md)](PLUGINS.md)
-- 📗 [控制台指令与运维手册 (OPERATIONS.md)](OPERATIONS.md)
-- 📙 [物品系统与元数据规范 (ITEMS.md)](ITEMS.md)
-- 📕 [单世界归档与多维度管理 (SINGLE_WORLD.md)](SINGLE_WORLD.md)
+服务端运营后台：`/admin`。权限、备份恢复、部署模板和无限区块存储详见 [OPERATIONS.md](OPERATIONS.md)。
 
----
 
-## 📄 开源许可证
+### 三维度传送指令
 
-本项目采用 [MIT License](LICENSE) 协议开源，欢迎社区提交 Issue 与 Pull Request！
+在线 OP 可在聊天中输入 `/dim overworld`（主世界）、`/dim nether`（下界/地狱）、`/dim end`（末地）。中文写法 `/dim 普通世界`、`/dim 地狱`、`/dim 末地` 同样有效；完整命令是 `/dimension <维度> [玩家]`，例如 `/dimension end Steve`。`/help dimension` 查看帮助。需要 OP 或 `server.admin` 权限，普通玩家继续使用传送门。目标为当前世界对应维度的安全出生区域，保留背包、生命和经验；插件可阻止传送，相关 SDK 与事件见 [PLUGINS.md](PLUGINS.md)。
+
+适用生存世界和无限世界（包括玩家创造模式）；旧版有限创造世界沿用单维度客户端，指令会明确拒绝，不会转移玩家到无法显示的地形。

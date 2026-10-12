@@ -20,6 +20,7 @@ var commandCatalog = []commandDef{
 	{Name: "help", Aliases: []string{"?"}, Usage: "/help [命令]", Description: "查看帮助手册或具体命令用法", NeedOP: false},
 	{Name: "gamemode", Aliases: []string{"gm"}, Usage: "/gamemode <survival|creative|adventure|spectator> [玩家]", Description: "切换自己或指定玩家的游戏模式", NeedOP: true, Survival: true},
 	{Name: "tp", Aliases: []string{"teleport"}, Usage: "/tp <玩家> 或 /tp [玩家] <目标玩家|x y z>", Description: "传送实体或传送到指定坐标", NeedOP: true},
+	{Name: "dimension", Aliases: []string{"dim"}, Usage: "/dimension <overworld|nether|end> [玩家]", Description: "传送到主世界、下界（地狱）或末地的安全出生位置，支持中文维度名", NeedOP: true},
 	{Name: "time", Usage: "/time <set|add|query> <day|night|noon|midnight|数值>", Description: "查询或设置世界昼夜时间", NeedOP: true},
 	{Name: "weather", Usage: "/weather <clear|rain|thunder> [秒数]", Description: "更改当前世界天气", NeedOP: true, Survival: true},
 	{Name: "give", Usage: "/give [玩家] <物品名称或ID> [数量]", Description: "给予自己或指定玩家物品", NeedOP: true, Survival: true},
@@ -40,6 +41,10 @@ var commandCatalog = []commandDef{
 	{Name: "worldinfo", Usage: "/worldinfo", Description: "查询当前世界维度、尺寸与运行状态", NeedOP: false},
 	{Name: "scoreboard", Usage: "/scoreboard <objectives|players|toggle> ...", Description: "管理计分板项目、显示槽位及玩家分数", NeedOP: false},
 	{Name: "anticheat", Usage: "/anticheat [status|reload|toggle|on|off]", Description: "查看或动态调整反作弊开关与参数", NeedOP: true},
+	{Name: "balance", Aliases: []string{"bal", "money"}, Usage: "/balance [玩家名]", Description: "查询自己或指定玩家的金币余额", NeedOP: false},
+	{Name: "pay", Usage: "/pay <玩家名或ID> <金额>", Description: "向指定玩家转账金币", NeedOP: false},
+	{Name: "eco", Usage: "/eco <give|take|set|bal> <玩家> [金额]", Description: "管理员经济管理（加钱/扣钱/设余额）", NeedOP: true},
+	{Name: "trade", Usage: "/trade <玩家名或ID> 或 /trade <accept|deny|cancel>", Description: "发起或响应面对面安全交易面板", NeedOP: false},
 }
 
 // nearestPlayer returns the closest player to p (or p itself if alone).
@@ -91,6 +96,8 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 	}
 
 	switch strings.ToLower(name) {
+	case "dimension", "dim":
+		return true, s.dimensionCommand(p, args)
 	case "help", "?":
 		if len(args) == 0 {
 			// 列出所有可用命令
@@ -399,6 +406,12 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 
 	case "anticheat":
 		return s.handleAnticheatCommand(p, args)
+
+	case "balance", "bal", "money", "pay", "eco":
+		return s.handleEconomyCommands(p, strings.ToLower(name), parts)
+
+	case "trade":
+		return s.handleTradeCommand(p, parts)
 	}
 
 	return false, false

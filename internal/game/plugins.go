@@ -470,6 +470,10 @@ func (s *Server) applyAction(a api.Action) {
 		if p != nil {
 			s.teleport(p, a.X, a.Y, a.Z, "plugin")
 		}
+	case "change_dimension":
+		if p != nil {
+			s.changePlayerDimension(nil, p, a.Dimension, "plugin")
+		}
 	case "heal":
 		s.heal(p, a.Amount, "plugin")
 	case "damage_player":

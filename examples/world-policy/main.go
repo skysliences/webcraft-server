@@ -15,12 +15,18 @@ func main() {
 	var config struct {
 		AllowedPrimaryWorldID     string   `json:"allowedPrimaryWorldId"`
 		BlockedSpawnEggTypes      []string `json:"blockedSpawnEggTypes"`
+		BlockedNaturalMobTypes    []string `json:"blockedNaturalMobTypes"`
+		BlockedDimensions         []string `json:"blockedDimensions"`
+		PreserveDistantMobs       bool     `json:"preserveDistantMobs"`
 		BlockedRedstoneComponents []string `json:"blockedRedstoneComponents"`
 		PreserveNaturalLeaves     bool     `json:"preserveNaturalLeaves"`
 		BlockedTNTReasons         []string `json:"blockedTntReasons"`
 		TNTFuseTicks              int      `json:"tntFuseTicks"`
 		BlockedMechanics          []string `json:"blockedMechanics"`
 		BlockedVehicleTypes       []string `json:"blockedVehicleTypes"`
+		DisableHopperTransfers    bool     `json:"disableHopperTransfers"`
+		DisableAnimalFeeding      bool     `json:"disableAnimalFeeding"`
+		DisableAnimalBreeding     bool     `json:"disableAnimalBreeding"`
 		DisableFishing            bool     `json:"disableFishing"`
 		DisableDispensing         bool     `json:"disableDispensing"`
 		BlockedDispenseBehaviors  []string `json:"blockedDispenseBehaviors"`
@@ -44,9 +50,32 @@ func main() {
 		}
 		return json.Unmarshal(raw, &protected)
 	}
+	for _, name := range []string{api.InventoryMoving, api.InventoryPickingUp, api.AnimalFeeding, api.AnimalBreeding} {
+		p.On(name, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+			if config.DisableHopperTransfers && e.String("source") == "hopper" || config.DisableAnimalFeeding && e.Name == api.AnimalFeeding || config.DisableAnimalBreeding && e.Name == api.AnimalBreeding {
+				e.Cancel("world_policy.automation_denied")
+			}
+			if e.Name == api.InventoryMoving || e.Name == api.InventoryPickingUp {
+				if item := e.Item("stack"); item != nil && item.Meta != nil && item.Meta.CustomData["world-policy:lock_transfer"] == true {
+					e.Cancel("world_policy.item_transfer_locked")
+				}
+			}
+			return nil
+		})
+	}
 	p.On(api.ServerWorldSelecting, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
 		if config.AllowedPrimaryWorldID != "" && e.String("worldId") != config.AllowedPrimaryWorldID {
 			e.Cancel("world_policy.primary_world_denied")
+		}
+		return nil
+	})
+	p.On(api.PlayerDimensionChanging, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+		if transfer := e.PlayerTransfer(); transfer != nil {
+			for _, dim := range config.BlockedDimensions {
+				if dim == transfer.Dimension {
+					e.Cancel("world_policy.dimension_denied")
+				}
+			}
 		}
 		return nil
 	})
@@ -111,6 +140,23 @@ func main() {
 		}
 		return nil
 	})
+	p.On(api.EntitySpawning, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+		if mob := e.MobLifecycle(); mob != nil && mob.SpawnReason == "natural" {
+			for _, kind := range config.BlockedNaturalMobTypes {
+				if mob.Type == kind {
+					e.Cancel("world_policy.natural_mob_denied")
+					break
+				}
+			}
+		}
+		return nil
+	})
+	p.On(api.EntityDespawning, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
+		if config.PreserveDistantMobs && (e.String("reason") == "distance" || e.String("reason") == "random_distance") {
+			e.Cancel("world_policy.distant_mob_preserved")
+		}
+		return nil
+	})
 	p.On(api.RedstoneComponentChanging, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
 		for _, component := range config.BlockedRedstoneComponents {
 			if e.String("component") == component {
@@ -149,7 +195,7 @@ func main() {
 		})
 	}
 	// Monitor can observe a committed action, but its changes/actions are ignored.
-	for _, name := range []string{api.ServerWorldSelected, api.WorldRuleChanged, api.BackupCreated, api.PluginsReloaded, api.ChunkPopulated, api.PlayerOperatorChanged, api.PlayerGameModeChanged, api.ServerDefaultGameModeChanged, api.ItemSpawnEggUsed, api.RedstoneComponentChanged, api.LeavesDecayed, api.TNTPrimed, api.MechanicChanged, api.RailChanged, api.BlockDispensed, api.SignChanged, api.VehiclePlaced, api.VehicleEntered, api.VehicleExited, api.VehicleDestroyed, api.FishingCast, api.FishingBit, api.FishingReeled, api.BlockIgnited, api.PortalCreated, api.PlayerEquipped, api.BottleFilled, api.ItemEggHatched, api.EntityGrown, api.EntitySheared, api.PlayerFoodChanged} {
+	for _, name := range []string{api.PlayerDimensionChanged, api.EntitySpawned, api.EntityDespawned, api.ServerWorldSelected, api.WorldRuleChanged, api.BackupCreated, api.PluginsReloaded, api.ChunkPopulated, api.PlayerOperatorChanged, api.PlayerGameModeChanged, api.ServerDefaultGameModeChanged, api.ItemSpawnEggUsed, api.RedstoneComponentChanged, api.LeavesDecayed, api.TNTPrimed, api.MechanicChanged, api.RailChanged, api.BlockDispensed, api.SignChanged, api.VehiclePlaced, api.VehicleEntered, api.VehicleExited, api.VehicleDestroyed, api.FishingCast, api.FishingBit, api.FishingReeled, api.BlockIgnited, api.PortalCreated, api.PlayerEquipped, api.BottleFilled, api.ItemEggHatched, api.EntityGrown, api.EntitySheared, api.PlayerFoodChanged} {
 		p.On(name, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
 			raw, err := json.Marshal(e)
 			if err != nil {

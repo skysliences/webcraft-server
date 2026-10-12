@@ -43,6 +43,20 @@ func TestGamePluginProcess(t *testing.T) {
 		e.Data["blocks"] = []any{}
 		return nil
 	})
+	p.On(api.PlayerDimensionChanging, api.Subscription{}, func(c *api.Context, e *api.Event) error {
+		if e.String("reason") == "dimension_fixture" {
+			e.Data["dimension"] = "nether"
+			e.Data["x"] = -1
+			e.Data["actor"] = "forged"
+		}
+		return nil
+	})
+	p.On(api.PlayerDimensionChanged, api.Subscription{Priority: api.Monitor}, func(c *api.Context, e *api.Event) error {
+		e.Cancel("ignored monitor")
+		e.Data["dimension"] = "nether"
+		c.ChangeDimension(e, "nether")
+		return nil
+	})
 	for _, spec := range api.Events() {
 		name := spec.Name
 		if !strings.Contains(name, "experience") && !strings.Contains(name, "effect") && !strings.Contains(name, "dimension") && !strings.HasPrefix(name, "server.") && !strings.HasPrefix(name, "world.rule") && !strings.HasPrefix(name, "block.physics") && !strings.HasPrefix(name, "projectile.") {
@@ -63,7 +77,7 @@ func TestGamePluginProcess(t *testing.T) {
 		})
 		if spec.Cancellable {
 			p.On(name, api.Subscription{}, func(c *api.Context, e *api.Event) error {
-				if e.String("reason") == "protected" || e.String("effect") == "slowness" || name == api.PlayerDimensionChanging || name == api.PlayerExperienceChanging && e.Number("amount") == 13 || name == api.ProjectileLaunching && e.Number("damage") == 13 || name == api.BackupCreating && e.String("reason") == "blocked" {
+				if e.String("reason") == "protected" || e.String("effect") == "slowness" || name == api.PlayerDimensionChanging && e.String("reason") != "dimension_fixture" || name == api.PlayerExperienceChanging && e.Number("amount") == 13 || name == api.ProjectileLaunching && e.Number("damage") == 13 || name == api.BackupCreating && e.String("reason") == "blocked" {
 					e.Cancel("extension protected")
 				}
 				if name == api.PlayerExperienceChanging && e.Number("amount") == 7 {

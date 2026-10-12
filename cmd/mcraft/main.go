@@ -70,6 +70,25 @@ func main() {
 		log.Fatal("AUTH_COOKIE_SECURE must be true or false")
 	}
 	config := game.Config{DataDir: data, EngineFile: engine, AllowedOrigins: strings.Split(env("ALLOWED_ORIGINS", "http://127.0.0.1:8080,http://localhost:8080"), ","), MaxPlayers: cap, PluginDir: env("PLUGIN_DIR", filepath.Join(root, "plugins")), PluginTimeout: timeout, SecureCookies: secureCookies}
+	mobs := game.DefaultMobSpawningConfig()
+	for _, setting := range []struct {
+		name  string
+		value *int
+	}{
+		{"MOB_MONSTER_LIMIT", &mobs.MonsterLimit}, {"MOB_ANIMAL_LIMIT", &mobs.AnimalLimit},
+		{"MOB_SPAWN_RANGE", &mobs.SpawnRange}, {"MOB_MONSTER_INTERVAL", &mobs.MonsterInterval},
+		{"MOB_ANIMAL_INTERVAL", &mobs.AnimalInterval}, {"MOB_SPAWN_ATTEMPTS", &mobs.AttemptsPerTick},
+		{"MOB_SPAWNS_PER_TICK", &mobs.SpawnsPerTick}, {"MOB_TOTAL_LIMIT", &mobs.TotalLimit},
+	} {
+		if raw := os.Getenv(setting.name); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil {
+				log.Fatalf("%s must be an integer", setting.name)
+			}
+			*setting.value = value
+		}
+	}
+	config.MobSpawning = &mobs
 	config.InfiniteWorlds = env("INFINITE_WORLDS", "true") != "false"
 	legacyMultiWorld, err := strconv.ParseBool(env("LEGACY_MULTI_WORLD", "false"))
 	if err != nil {

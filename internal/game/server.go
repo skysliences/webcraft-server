@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"io"
 	"log"
@@ -78,6 +79,7 @@ type Server struct {
 	worldBindingNew      bool
 	closeError           error
 	testEventHook        func(*api.Event)
+	economyDB            *EconomyDB
 }
 
 func New(config Config) (*Server, error) {
@@ -93,9 +95,13 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	var s *Server
 	ready := false
 	defer func() {
 		if !ready {
+			if s != nil && s.economyDB != nil {
+				_ = s.economyDB.Close()
+			}
 			unlock()
 		}
 	}()
@@ -110,10 +116,16 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{config: config, rooms: map[string]*Room{}, engine: engine, rules: rules, nextID: 1, rng: rand.New(rand.NewSource(time.Now().UnixNano())), started: time.Now(), stop: make(chan struct{}), stopRequested: make(chan struct{}, 1), done: make(chan struct{})}
+	s = &Server{config: config, rooms: map[string]*Room{}, engine: engine, rules: rules, nextID: 1, rng: rand.New(rand.NewSource(time.Now().UnixNano())), started: time.Now(), stop: make(chan struct{}), stopRequested: make(chan struct{}, 1), done: make(chan struct{})}
 	s.coreRules = rules
 	s.initAnticheat()
 	engine.server = s
+	econDB, err := initEconomyDB(config.DataDir)
+	if err != nil {
+		engine.runtime.Close(context.Background())
+		return nil, fmt.Errorf("open economy db: %w", err)
+	}
+	s.economyDB = econDB
 	if err = s.loadRegistry(); err != nil {
 		engine.runtime.Close(context.Background())
 		return nil, err
@@ -221,6 +233,9 @@ func (s *Server) Close() error {
 	}
 	s.drainActions()
 	s.plugins.Close()
+	if s.economyDB != nil {
+		result = errors.Join(result, s.economyDB.Close())
+	}
 	result = errors.Join(result, s.engine.runtime.Close(context.Background()))
 	s.closeError = result
 	return result
@@ -637,6 +652,7 @@ type Message struct {
 	Preview        []BlockPosition `json:"preview,omitempty"`
 	PlacementStack *Stack          `json:"-"`
 	Forward        float64         `json:"forward"`
+	Amount         float64         `json:"amount,omitempty"`
 	Turn           float64         `json:"turn"`
 	Exit           bool            `json:"exit"`
 	Lines          []string        `json:"lines"`
@@ -1049,6 +1065,9 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 	p.json(map[string]string{"t": "synced"})
 	s.syncMobsFor(p)
 	s.joinedExt(p)
+	if bal, err := s.ensureEconomyAccount(p); err == nil {
+		p.json(map[string]any{"t": "economy_balance", "balance": bal})
+	}
 	s.broadcastScoreboard(r)
 	broadcastWorld(r, map[string]any{"t": "join", "p": p.public()}, p)
 	s.emit(api.PlayerJoined, r, p, map[string]any{"reason": "server_connect", "actor": p.sid, "target": r.root().ID})
@@ -1058,6 +1077,7 @@ func (s *Server) disconnect(p *Peer) {
 	if p.room == nil {
 		return
 	}
+	s.cancelTrade(p, "玩家已离线")
 	r := p.room
 	s.closeWindow(p)
 	s.disconnectTransport(p)
@@ -1346,7 +1366,7 @@ func (s *Server) windowUpdates(p *Peer) {
 }
 func (s *Server) message(p *Peer, m Message) {
 	r := p.room
-	if r.Infinite && m.T != "chat" && m.Epoch != p.epoch {
+	if r.Infinite && m.T != "chat" && !strings.HasPrefix(m.T, "trade_") && m.T != "custom_ui_response" && m.Epoch != p.epoch {
 		return
 	}
 	switch m.T {
