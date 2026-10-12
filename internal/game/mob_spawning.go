@@ -222,7 +222,7 @@ func (s *Server) spawnAmbientMobs(r *Room) {
 			case "end":
 				types = []string{"enderman"}
 			default:
-				types = []string{"zombie", "spider", "skeleton", "creeper", "enderman"}
+				types = []string{"zombie", "spider", "skeleton", "creeper"}
 			}
 		} else if r.dimName() != "overworld" {
 			continue

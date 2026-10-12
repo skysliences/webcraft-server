@@ -368,6 +368,9 @@ func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 	if r.dimName() == "end" {
 		return typ == "enderman" && s.blockLight(r, x, y, z) == 0
 	}
+	if typ == "enderman" {
+		return false
+	}
 	if spec.Hostile {
 		return s.mobSkyLight(r, x, y, z) <= 7 && s.blockLight(r, x, y, z) == 0
 	}
@@ -615,6 +618,10 @@ func (s *Server) mobsTick(r *Room) {
 			continue
 		}
 		target, nearest := s.nearestMobPlayer(r, m.X, m.Y, m.Z)
+		if r.dimName() == "overworld" && m.Type == "enderman" && !m.Persistent {
+			s.removeMob(r, m, "dimension_restriction")
+			continue
+		}
 		if s.despawnMob(r, m, nearest) {
 			continue
 		}

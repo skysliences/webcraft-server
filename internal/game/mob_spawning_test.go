@@ -377,3 +377,61 @@ func TestMobSpawningSaveMigrationAndLoweredCapacity(t *testing.T) {
 		t.Fatal("invalid range")
 	}
 }
+
+func TestEndermanOverworldSpawningDisabled(t *testing.T) {
+	s, _ := testApp(t, t.TempDir())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, p := mobTestWorld(s)
+	p.state.X, p.state.Z = 100.5, 10.5
+
+	// 1. 在主世界中（黑暗洞穴），验证普通怪物可以自然生成，但末影人严禁自然生成
+	r.Edits[blockKey(12, 63, 10)] = s.rules.byName["Stone"]
+	if !s.canNaturalSpawn(r, "zombie", 12, 60, 10) {
+		t.Fatal("zombie should naturally spawn in dark cave")
+	}
+	if s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
+		t.Fatal("enderman should NOT naturally spawn in overworld")
+	}
+
+	// 2. 验证在末地（Dim == "end"）中，末影人依然可以自然生成
+	r.Dim = "end"
+	if !s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
+		t.Fatal("enderman should naturally spawn in the End")
+	}
+	r.Dim = "overworld"
+
+	// 3. 验证主世界已存在的非持久末影人在 mobsTick 中会被自动清除
+	r.Mobs[101] = &Mob{ID: 101, Type: "enderman", X: 12.5, Y: 60, Z: 10.5, SpawnReason: "natural"}
+	// 持久末影人（如命名牌或显式标记）保留
+	r.Mobs[102] = &Mob{ID: 102, Type: "enderman", X: 12.5, Y: 60, Z: 10.5, Persistent: true}
+	// 普通怪物不被此规则清除
+	r.Mobs[103] = &Mob{ID: 103, Type: "zombie", X: 12.5, Y: 60, Z: 10.5}
+
+	s.mobsTick(r)
+
+	if r.Mobs[101] != nil {
+		t.Fatal("non-persistent overworld enderman should be removed by mobsTick")
+	}
+	if r.Mobs[102] == nil {
+		t.Fatal("persistent enderman should be preserved")
+	}
+	if r.Mobs[103] == nil {
+		t.Fatal("regular monster should not be removed by enderman restriction")
+	}
+
+	// 4. 验证主世界自然怪物刷怪循环中绝不生成末影人
+	r.Mobs = map[uint32]*Mob{}
+	r.Time = 18000
+	s.rng = rand.New(rand.NewSource(42))
+	for i := 1; i <= 200; i++ {
+		s.tick = uint64(i)
+		s.spawnAmbientMobs(r)
+	}
+	for _, m := range r.Mobs {
+		if m.Type == "enderman" {
+			t.Fatal("ambient spawning produced an enderman in overworld")
+		}
+	}
+}
+
