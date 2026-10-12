@@ -136,6 +136,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 		s.closeWindow(p)
 		if s.respawnPlayer(p) {
 			s.emit(api.PlayerRespawned, p.room, p, map[string]any{"reason": "respawn"})
+			broadcastWorld(p.room, map[string]any{"t": "prespawn", "id": p.id}, nil)
 		}
 		return
 	}
@@ -625,7 +626,9 @@ func (s *Server) health(p *Peer) {
 	p.json(msg)
 }
 func (s *Server) deathMessage(p *Peer) {
-	p.json(s.deathInfo(p))
+	msg := s.deathInfo(p)
+	msg["id"] = p.id
+	p.json(msg)
 }
 func (s *Server) life(p *Peer) {
 	st := p.state

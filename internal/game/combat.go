@@ -135,7 +135,8 @@ func (s *Server) damagePlayer(p *Peer, amount float64, reason string, ctx *api.D
 		s.onDeathExt(p)
 		s.deathMessage(p)
 		message := limitText(death.String("message"), 240)
-		broadcast(p.room, map[string]any{"t": "dead", "m": message}, p)
+		broadcast(p.room, map[string]any{"t": "dead", "id": p.id, "m": message}, p)
+		broadcastWorld(p.room, map[string]any{"t": "pdead", "id": p.id, "m": message}, nil)
 		data := damageData(ctx, reason)
 		data["message"] = message
 		s.emit(api.PlayerDead, p.room, p, data)
