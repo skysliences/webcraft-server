@@ -516,7 +516,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		for other := range r.Peers {
-			if other.id != m.P || other == p || other.state.Dead {
+			if other.id != m.P || other == p || other.state == nil || other.state.Dead {
 				continue
 			}
 			dx, dy, dz := other.state.X-st.X, other.state.Y-st.Y, other.state.Z-st.Z
@@ -524,12 +524,93 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			if dx*dx+dy*dy+dz*dz > reach*reach || !s.lineClear(r, [3]float64{st.X, st.Y + 1.62, st.Z}, [3]float64{other.state.X, other.state.Y + 1, other.state.Z}) {
 				return
 			}
-			ctx := s.playerAttack(p, playerTarget(other), s.attributes(p)[api.AttackDamage])
+
+			// 暴击判定：客户端命中时计算的暴击提示
+			isCrit := m.Sound == "crit"
+			baseAmount := s.attributes(p)[api.AttackDamage]
+			if isCrit {
+				baseAmount *= 1.5
+			}
+
+			ctx := s.playerAttack(p, playerTarget(other), baseAmount)
 			if ctx != nil && s.damagePlayer(other, ctx.Amount, "被玩家击败了。", ctx) {
 				p.attackAt = time.Now()
 				s.wear(p, 1)
 				s.inventory(p, 0, 0)
 				s.emit(api.PlayerAttacked, r, p, damageData(ctx, "player_attack"))
+
+				// 1. 击退（Knockback）冲量计算
+				kdx := other.state.X - st.X
+				kdz := other.state.Z - st.Z
+				dist := math.Hypot(kdx, kdz)
+				if dist < 0.001 {
+					yaw := st.Yaw
+					kdx = -math.Sin(yaw)
+					kdz = -math.Cos(yaw)
+					dist = 1.0
+				}
+				dirX := kdx / dist
+				dirZ := kdz / dist
+
+				// 基础击退 0.45，疾跑攻击 +0.45，击退附魔每级 +0.45
+				strength := 0.45
+				if m.Sp == 1 {
+					strength += 0.45
+				}
+				if knockLvl := enchOf(s.heldItem(p), "knockback"); knockLvl > 0 {
+					strength += float64(knockLvl) * 0.45
+				}
+
+				// 向受击者下发带有物理击退冲量的 hurt 数据包
+				other.json(map[string]any{
+					"t":  "hurt",
+					"f":  true,
+					"kb": [][]float64{{strength, -dirX, -dirZ}},
+				})
+
+				appliedDmg := ctx.AppliedAmount
+				if appliedDmg <= 0 {
+					appliedDmg = ctx.Amount
+				}
+
+				headY := other.state.Y + 1.8
+
+				// 2. 全房间广播受击发红（phurt）
+				broadcastWorld(r, map[string]any{
+					"t":        "phurt",
+					"id":       other.id,
+					"attacker": p.id,
+					"damage":   appliedDmg,
+					"crit":     isCrit,
+					"x":        other.state.X,
+					"y":        headY,
+					"z":        other.state.Z,
+				}, nil)
+
+				// 3. 全房间广播头顶网游伤害飘字（dmg）
+				broadcastWorld(r, map[string]any{
+					"t":          "dmg",
+					"targetType": "player",
+					"id":         other.id,
+					"amount":     appliedDmg,
+					"crit":       isCrit,
+					"x":          other.state.X,
+					"y":          headY + 0.25,
+					"z":          other.state.Z,
+				}, nil)
+
+				// 4. 广播战斗打击音效
+				soundType := "strong"
+				if isCrit {
+					soundType = "crit"
+				} else if m.Sp == 1 {
+					soundType = "knockback"
+				}
+				soundAt(r, "entity.player.attack."+soundType, other.state.X, headY, other.state.Z, nil)
+				if m.Sp == 1 || strength > 0.45 {
+					soundAt(r, "entity.player.attack.knockback", other.state.X, headY, other.state.Z, nil)
+				}
+				soundAt(r, "entity.player.hurt", other.state.X, headY, other.state.Z, nil)
 			}
 			break
 		}

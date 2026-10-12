@@ -699,6 +699,8 @@ type Message struct {
 	Part           string          `json:"part"`
 	Ping           int             `json:"ping,omitempty"`
 	Latency        int             `json:"latency,omitempty"`
+	Sp             int             `json:"sp,omitempty"`
+	Sound          string          `json:"sound,omitempty"`
 }
 
 func parseMessage(data []byte) (Message, error) {
@@ -712,8 +714,9 @@ func parseMessage(data []byte) (Message, error) {
 		return m, err
 	}
 	if typ == "attack" {
-		// The client uses s for an attack sound, while dig/use/click use a
-		// numeric stage. Sound/critical-hit hints never determine server damage.
+		if rawS, ok := raw["s"]; ok {
+			_ = json.Unmarshal(rawS, &m.Sound)
+		}
 		delete(raw, "s")
 	}
 	if typ == "milk" {

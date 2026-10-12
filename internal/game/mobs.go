@@ -505,6 +505,16 @@ func (s *Server) damageMobSource(r *Room, p *Peer, m *Mob, amount float64, reaso
 		data["health"] = m.Health
 		s.mobEvent(r, m, 1, 0)
 		s.emit(api.EntityDamaged, r, p, data)
+		broadcastWorld(r, map[string]any{
+			"t":          "dmg",
+			"targetType": "mob",
+			"id":         m.ID,
+			"amount":     ctx.AppliedAmount,
+			"crit":       false,
+			"x":          m.X,
+			"y":          m.Y + 3.0,
+			"z":          m.Z,
+		}, nil)
 
 		if lethal || m.Health <= 0 {
 			df.Health = 0
@@ -538,9 +548,26 @@ func (s *Server) damageMobSource(r *Room, p *Peer, m *Mob, amount float64, reaso
 	for k, v := range damageData(ctx, reason) {
 		data[k] = v
 	}
-	data["health"] = m.Health
 	s.mobEvent(r, m, 1, 0)
 	s.emit(api.EntityDamaged, r, p, data)
+	appliedMobDmg := ctx.AppliedAmount
+	if appliedMobDmg <= 0 {
+		appliedMobDmg = amount
+	}
+	mobH := 1.5
+	if spec, ok := mobSpecs[m.Type]; ok && spec.Height > 0 {
+		mobH = spec.Height
+	}
+	broadcastWorld(r, map[string]any{
+		"t":          "dmg",
+		"targetType": "mob",
+		"id":         m.ID,
+		"amount":     appliedMobDmg,
+		"crit":       reason == "player_attack" && ctx.RawAmount > amount,
+		"x":          m.X,
+		"y":          m.Y + mobH + 0.2,
+		"z":          m.Z,
+	}, nil)
 	if lethal {
 		s.mobEvent(r, m, 2, 0)
 		delete(r.Mobs, m.ID)

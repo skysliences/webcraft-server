@@ -113,7 +113,21 @@ func (s *Server) damagePlayer(p *Peer, amount float64, reason string, ctx *api.D
 	ctx.HealthAfter = p.state.Health
 	ctx.AppliedAmount = ctx.HealthBefore - ctx.HealthAfter
 	s.emit(api.PlayerDamaged, p.room, p, damageData(ctx, reason))
-	p.json(map[string]any{"t": "hurt", "f": true})
+	if ctx == nil || ctx.Cause != "player_attack" {
+		p.json(map[string]any{"t": "hurt", "f": true})
+		if ctx != nil && ctx.AppliedAmount > 0 {
+			broadcastWorld(p.room, map[string]any{
+				"t":          "dmg",
+				"targetType": "player",
+				"id":         p.id,
+				"amount":     ctx.AppliedAmount,
+				"crit":       false,
+				"x":          p.state.X,
+				"y":          p.state.Y + 2.1,
+				"z":          p.state.Z,
+			}, nil)
+		}
+	}
 	if p.state.Health <= 0 {
 		p.state.Dead = true
 		p.mining = nil
