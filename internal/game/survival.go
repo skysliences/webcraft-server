@@ -159,6 +159,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			p.useAt = time.Time{}
 			r.Dirty = true
 			s.inventory(p, 0, 0)
+			s.broadcastPeerEquipment(p)
 		}
 	case "dig":
 		if !s.reachable(p, m) {
@@ -533,7 +534,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			break
 		}
 	default:
-		p.sys("此功能尚未包含在基础生存模式中。")
+		// Ambient or unrecognized client packet: silently ignore instead of spamming player chat.
 	}
 }
 func (s *Server) health(p *Peer) {

@@ -28,6 +28,7 @@ func init() {
 			"id":       p.id,
 			"blocking": blocking,
 		})
+		s.broadcastPeerEquipment(p)
 		return true
 	})
 
@@ -49,6 +50,7 @@ func init() {
 
 		p.room.Dirty = true
 		s.inventory(p, 0, 0)
+		s.broadcastPeerEquipment(p)
 		soundAt(p.room, "item.armor.equip_generic", p.state.X, p.state.Y, p.state.Z, nil)
 		return true
 	})
