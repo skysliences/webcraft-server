@@ -60,16 +60,34 @@ func (s *Server) prepareTorchChanges(r *Room, p *Peer, key uint64, b, reserved i
 			continue
 		}
 		id := s.block(r, tx, ty, tz)
-		if !isTorch(id) || torchOffsets[id-torchBlock] != off {
+		attached := isTorch(id) && torchOffsets[id-torchBlock] == off
+		if id == 109 {
+			face := 1
+			if state := redstoneSnapshot(r, blockKey(tx, ty, tz)); state != nil && state.SupportFace >= 1 && state.SupportFace <= 5 {
+				face = state.SupportFace
+			}
+			attached = faceOffsets[face] == [3]int{-off[0], -off[1], -off[2]}
+		}
+		if !attached {
 			continue
 		}
 		child := blockKey(tx, ty, tz)
 		data := s.blockData(r, child, 0)
 		data["reason"] = "support_lost"
+		if id == 109 {
+			data = s.redstoneBlockChangeData(r, p, child, 0, "redstone_support_lost")
+			if !s.allowed(api.BlockPhysicsChanging, r, p, data) || !s.allowed(api.RedstoneComponentChanging, r, p, data) {
+				return nil, fmt.Errorf("插件阻止了红石火把失去支撑，操作未提交。")
+			}
+		}
 		if !s.allowed(api.BlockBreaking, r, p, data) {
 			return nil, fmt.Errorf("插件阻止了火把失去支撑，操作未提交。")
 		}
-		changes = append(changes, torchChange{key: child})
+		change := torchChange{key: child}
+		if id == 109 {
+			change.data = data
+		}
+		changes = append(changes, change)
 	}
 	if !r.usesSurvival() {
 		return changes, nil
@@ -79,7 +97,11 @@ func (s *Server) prepareTorchChanges(r *Room, p *Peer, key uint64, b, reserved i
 	}
 	for i := range changes {
 		tx, ty, tz := coords(changes[i].key)
-		drops, err := s.prepareDrops(r, p, Stacks{stack(torchBlock, 1, 0)}, float64(tx)+.5, float64(ty)+.35, float64(tz)+.5, "support_lost")
+		item := torchBlock
+		if s.block(r, tx, ty, tz) == 109 {
+			item = 355 // Redstone torch item, independent of its support face.
+		}
+		drops, err := s.prepareDrops(r, p, Stacks{stack(item, 1, 0)}, float64(tx)+.5, float64(ty)+.35, float64(tz)+.5, "support_lost")
 		if err != nil {
 			return nil, err
 		}
@@ -103,6 +125,7 @@ func (s *Server) applyTorchChanges(r *Room, p *Peer, changes []torchChange) {
 			} else {
 				r.Edits[change.key] = 0
 				delete(r.Authors, change.key)
+				s.trackRedstoneBlock(r, change.key, 0)
 				s.trackMechanicBlock(r, change.key, 0)
 				r.Dirty = true
 				r.rt().redstoneDirty = true
@@ -114,6 +137,9 @@ func (s *Server) applyTorchChanges(r *Room, p *Peer, changes []torchChange) {
 				if _, ok := change.data["railAfter"]; ok {
 					s.broadcastRail(r, change.key)
 				}
+			}
+			if _, ok := change.data["componentAfter"]; ok {
+				s.broadcastRedstone(r, change.key)
 			}
 			s.emit(api.BlockPhysicsChanged, r, p, change.data)
 			s.publishDrops(r, p, change.drops, "mechanic_support_lost")

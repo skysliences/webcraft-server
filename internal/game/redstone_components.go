@@ -319,6 +319,14 @@ func (s *Server) redstoneSupported(r *Room, k uint64, b int) bool {
 		return true
 	}
 	x, y, z := coords(k)
+	if kind == "torch" {
+		face := 1
+		if state := redstoneSnapshot(r, k); state != nil && state.Kind == kind && state.SupportFace >= 1 && state.SupportFace <= 5 {
+			face = state.SupportFace
+		}
+		off := faceOffsets[face]
+		return s.supportsTorch(s.block(r, x-off[0], y-off[1], z-off[2]))
+	}
 	return s.supportsTorch(s.block(r, x, y-1, z))
 }
 func (s *Server) changeRedstone(r *Room, p *Peer, k uint64, next *RedstoneComponent, reason string) bool {
