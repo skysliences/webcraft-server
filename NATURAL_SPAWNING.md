@@ -6,7 +6,7 @@
 
 - [CraftBukkit NaturalSpawner 补丁](https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/browse/nms-patches/net/minecraft/world/level/NaturalSpawner.patch)：分类限制、各分类间隔、可取消生成事件以及取消后不增加数量。
 - [Spigot 自然生成范围补丁](https://hub.spigotmc.org/stash/projects/SPIGOT/repos/spigot/browse/CraftBukkit-Patches/0009-Fix-Mob-Spawning-Relative-to-View-Distance.patch)：区块中心与玩家的距离、配置范围和视距。
-- [Spigot 官方配置说明](https://www.spigotmc.org/wiki/spigot-configuration/)及 CraftBukkit `src/main/resources/configurations/bukkit.yml`：默认基准怪物 70、动物 10、范围 6、间隔 1/400 ticks。
+- [Spigot 官方配置说明](https://www.spigotmc.org/wiki/spigot-configuration/)及 CraftBukkit `src/main/resources/configurations/bukkit.yml`：默认基准怪物 70、动物 10、间隔 1/400 ticks；刷怪范围采用 8 区块（[Paper 的 Spigot 配置参考](https://docs.papermc.io/paper/reference/spigot-configuration/)）。
 - [Mojang 官方 26.3 版本元数据](https://piston-meta.mojang.com/v1/packages/702fe59163c6ee6578607daa85811d9bc9c7cc40/26.3.json)：上游 Monster、NaturalSpawner、SpawnPlacements、Mob 和维度/生物群系数据。
 
 ## 白天与光照
@@ -31,7 +31,7 @@ Spigot 并不是“白天禁止一切怪物”。**晴天露天不应自然刷�
 |---|---:|---|
 | `MOB_MONSTER_LIMIT` | 70 | 周期自然怪物基准，0 停止此分类周期生成 |
 | `MOB_ANIMAL_LIMIT` | 10 | 周期自然动物基准，0 停止此分类周期生成 |
-| `MOB_SPAWN_RANGE` | 6 区块 | 对尝试生成的区块中心做圆形距离检查，并受视距限制；允许 1..8 |
+| `MOB_SPAWN_RANGE` | 8 区块 | 对尝试生成的区块中心做圆形距离检查，并受视距限制；允许 1..8 |
 | `MOB_MONSTER_INTERVAL` | 1 tick | 周期怪物生成间隔；0 停止 |
 | `MOB_ANIMAL_INTERVAL` | 400 ticks | 周期动物生成间隔，20 ticks/秒下为 20 秒；0 停止 |
 | `MOB_SPAWN_ATTEMPTS` | 0 | 0 使用所有符合范围条件的已加载区块；1..4096 为显式的额外采样预算 |
@@ -39,7 +39,7 @@ Spigot 并不是“白天禁止一切怪物”。**晴天露天不应自然刷�
 | `MOB_GENERATE_CHUNK_ANIMALS` | true | 新提交主世界区块的初始动物生成，可单独关闭 |
 | `MOB_TOTAL_LIMIT` | 1024 | 所有来源合计的单维度安全上限，1..4096；这是 WebCraft 的保护限制 |
 
-**全局分类上限 = floor(分类基准 × 已加载的自然生成统计区块数 / 289)。** 统计使用玩家周围至多 8 区块的自然生成票据范围，并对重叠玩家区域去重；尝试范围另受 `mob-spawn-range` 限制。不能把刷怪范围 6 直接当成统计区块只有 169 个。一个玩家完整加载 17×17 区块时，默认周期自然上限是怪物 70、动物 10；加载少、世界边界或刚加入时会更低。多个相隔较远的玩家可以扩大全局预算。
+**全局分类上限 = floor(分类基准 × 已加载的自然生成统计区块数 / 289)。** 统计使用玩家周围至多 8 区块的自然生成票据范围，并对重叠玩家区域去重；尝试范围另受 `mob-spawn-range` 限制。即使手动降低尝试范围，也不能据此缩小统计票据范围。一个玩家完整加载 17×17 区块时，默认周期自然上限是怪物 70、动物 10；加载少、世界边界或刚加入时会更低。多个相隔较远的玩家可以扩大全局预算。
 
 上限还要通过上游的玩家局部容量检查，默认局部怪物 70、动物 10，避免某个玩家的满额农场单独阻止另一个远处玩家。上下界、末地分别统计。分类统计包括已加载实体中的命令/生成蛋/刷怪笼等来源，显式持久实体不计入自然容量；远处未加载的实体不会挤占自然分类预算。所有保存的生物仍计入独立安全上限。
 

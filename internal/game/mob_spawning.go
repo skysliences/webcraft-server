@@ -8,7 +8,7 @@ import (
 )
 
 func DefaultMobSpawningConfig() api.MobSpawningConfig {
-	return api.MobSpawningConfig{GenerateChunkAnimals: true, MonsterLimit: 70, AnimalLimit: 10, SpawnRange: 6, MonsterInterval: 1, AnimalInterval: 400, AttemptsPerTick: 0, SpawnsPerTick: 0, TotalLimit: 1024}
+	return api.MobSpawningConfig{GenerateChunkAnimals: true, MonsterLimit: 70, AnimalLimit: 10, SpawnRange: 8, MonsterInterval: 1, AnimalInterval: 400, AttemptsPerTick: 0, SpawnsPerTick: 0, TotalLimit: 1024}
 }
 
 func validateMobSpawningConfig(c api.MobSpawningConfig) error {

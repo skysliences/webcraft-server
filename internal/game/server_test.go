@@ -68,6 +68,7 @@ func fixtureID(base, label string) string {
 
 func findTestEngineFile() string {
 	candidates := []string{
+		"../../../webcraft-client/src/client/engine.wasm",
 		"../../../public/engine.wasm",
 		"../../public/engine.wasm",
 		"../public/engine.wasm",

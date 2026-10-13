@@ -137,13 +137,14 @@ func (s *Server) mobSolid(r *Room, x, y, z int) bool {
 }
 func (s *Server) mobFits(r *Room, typ string, x, y, z float64) bool {
 	spec, ok := mobSpecs[typ]
-	if !ok || !number(x, r.minCoord()+1, r.maxCoord()-1) || !number(z, r.minCoord()+1, r.maxCoord()-1) || !number(y, 1, 126) {
+	if !ok || !number(x, r.minCoord()+1, r.maxCoord()-1) || !number(z, r.minCoord()+1, r.maxCoord()-1) || !number(y, 1, 126) || y+spec.Height > 128 {
 		return false
 	}
-	for _, dx := range []float64{-spec.Width/2 + .01, spec.Width/2 - .01} {
-		for _, dz := range []float64{-spec.Width/2 + .01, spec.Width/2 - .01} {
+	// Wide mobs can cover an interior column between the four corners.
+	for bx := int(math.Floor(x - spec.Width/2 + .01)); bx <= int(math.Floor(x+spec.Width/2-.01)); bx++ {
+		for bz := int(math.Floor(z - spec.Width/2 + .01)); bz <= int(math.Floor(z+spec.Width/2-.01)); bz++ {
 			for by := int(math.Floor(y + .01)); by <= int(math.Floor(y+spec.Height-.01)); by++ {
-				b := s.block(r, int(math.Floor(x+dx)), by, int(math.Floor(z+dz)))
+				b := s.block(r, bx, by, bz)
 				k := s.rules.Kinds[b]
 				if k != 0 && k != 5 {
 					return false

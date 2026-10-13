@@ -260,7 +260,7 @@ func pluginApp(t *testing.T) (*Server, *httptest.Server) {
 	}
 	raw, _ := json.Marshal(map[string]any{"id": "test", "name": "test", "version": "1", "apiVersion": 1, "entry": "plugin", "args": []string{"-test.run=^TestGamePluginProcess$", "game-plugin-fixture"}})
 	os.WriteFile(filepath.Join(entry, "plugin.json"), raw, 0600)
-	s, err := New(Config{DataDir: t.TempDir(), EngineFile: "../../../public/engine.wasm", PluginDir: dir, PluginTimeout: time.Second, MaxPlayers: 4, AllowedOrigins: []string{"http://127.0.0.1:8080"}})
+	s, err := New(Config{DataDir: t.TempDir(), EngineFile: findTestEngineFile(), PluginDir: dir, PluginTimeout: time.Second, MaxPlayers: 4, AllowedOrigins: []string{"http://127.0.0.1:8080"}})
 	if err != nil {
 		t.Fatal(err)
 	}
