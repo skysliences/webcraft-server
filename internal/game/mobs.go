@@ -714,7 +714,7 @@ func (s *Server) mobsTick(r *Room) {
 			amount := e.Number("amount")
 			if !e.Cancelled && number(amount, 0, 1000) && amount > 0 {
 				ctx.RawAmount, ctx.Amount = amount, amount
-				if s.damagePlayer(target, amount, "被"+map[string]string{"zombie": "僵尸", "spider": "蜘蛛"}[m.Type]+"击败了。", ctx) {
+				if s.damagePlayer(target, amount, "被"+map[string]string{"zombie": "僵尸", "spider": "蜘蛛", "skeleton": "骷髅", "creeper": "苦力怕"}[m.Type]+"击败了。", ctx) {
 					s.mobEvent(r, m, 3, 0)
 					for k, v := range damageData(ctx, "melee") {
 						data[k] = v
@@ -728,7 +728,9 @@ func (s *Server) mobsTick(r *Room) {
 		if m.fleeMS > 0 {
 			speed *= 2
 		}
-		if chase || m.fleeMS > 0 || m.walkMS > 1000 {
+		if m.Type == "skeleton" && chase && nearest <= 16 {
+			// 骷髅在战斗距离内由 mobs_ext 专属 AI 负责拉扯走位与瞄准射箭
+		} else if chase || m.fleeMS > 0 || m.walkMS > 1000 {
 			if !s.walkMob(r, m, -math.Sin(m.Yaw)*speed, -math.Cos(m.Yaw)*speed) {
 				m.Yaw += math.Pi / 2
 				if m.Yaw > math.Pi*2 {

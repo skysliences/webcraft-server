@@ -264,7 +264,7 @@ func init() {
 
 	// 2. 怪物特殊技能与寻路更新 (onRoomTick)
 	onRoomTick(func(s *Server, r *Room) {
-		if r.Mode != "survival" || len(r.Mobs) == 0 {
+		if !r.usesSurvival() || len(r.Mobs) == 0 {
 			return
 		}
 
@@ -317,13 +317,16 @@ func init() {
 
 			// B. 骷髅射手 (Skeleton): 拉扯与射箭
 			if m.Type == "skeleton" {
+				if minDist > 16 || math.Abs(target.state.Y-m.Y) > 8 {
+					continue
+				}
 				m.Yaw = math.Atan2(-(target.state.X - m.X), -(target.state.Z - m.Z))
 				ext.BowCooldown = max(0, ext.BowCooldown-1)
-				if minDist < 7 {
+				if minDist < 6 {
 					// 距离太近，向后撤退拉扯
 					s.advancedMobWalk(r, m, m.X-(target.state.X-m.X), m.Y, m.Z-(target.state.Z-m.Z), 0.14)
-				} else if minDist > 14 {
-					// 距离太远，向前靠近
+				} else if minDist > 12 {
+					// 距离较远，向前靠近
 					s.advancedMobWalk(r, m, target.state.X, target.state.Y, target.state.Z, 0.16)
 				}
 				// 远程射箭
@@ -345,7 +348,9 @@ func init() {
 							Shooter: mobTarget(m),
 						}
 						pr.Kind = 3 // ENT_KIND: arrow
-						pr.X, pr.Y, pr.Z = m.X, m.Y+1.6, m.Z
+						pr.X = m.X + (dirX/dLen)*0.5
+						pr.Y = m.Y + 1.6 + (dirY/dLen)*0.2
+						pr.Z = m.Z + (dirZ/dLen)*0.5
 						pr.VX = (dirX / dLen) * speed
 						pr.VY = (dirY/dLen)*speed + 0.05 + hDist*0.015
 						pr.VZ = (dirZ / dLen) * speed

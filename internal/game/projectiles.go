@@ -220,6 +220,9 @@ func (s *Server) projectileHitEntity(r *Room, pr *Projectile, x, y, z float64) b
 		// Don't hit the shooter right after launch.
 	}
 	for _, m := range r.Mobs {
+		if pr.Shooter != nil && pr.Shooter.EntityID == m.ID {
+			continue
+		}
 		spec := mobSpecs[m.Type]
 		hw := spec.Width/2 + .15
 		if math.Abs(x-m.X) <= hw && math.Abs(z-m.Z) <= hw && y >= m.Y-.1 && y <= m.Y+spec.Height+.1 {
