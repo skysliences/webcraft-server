@@ -144,6 +144,18 @@ func (s *Server) ensureChunk(r *Room, c ChunkCoord) (*WorldChunk, error) {
 			r.rt().redstoneDirty = true
 		}
 	}
+	// Generated rails have block state without a player edit. Track them only
+	// after the owning chunk is visible, so shape/vehicle queries cannot recurse.
+	for i, data := range d.Blocks {
+		if data.Rail != nil {
+			k := chunkKey(c, i)
+			b := int(v.Base[i])
+			if edited, ok := r.Edits[k]; ok {
+				b = edited
+			}
+			s.trackMechanicBlock(r, k, b)
+		}
+	}
 	if err = s.populateVegetation(r, c, v, generated); err != nil {
 		delete(r.chunks, c)
 		return nil, err

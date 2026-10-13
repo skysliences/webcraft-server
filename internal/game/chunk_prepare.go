@@ -168,8 +168,12 @@ func (s *Server) discardPreparedChunk(r *Room, c ChunkCoord) {
 func (s *Server) generateChunkSnapshot(r *Room, c ChunkCoord) (*diskChunk, error) {
 	room := newRoom(r.seedID(), r.Name, r.Mode, r.Lock)
 	room.Infinite, room.Dim, room.W, room.Generator = true, r.dimName(), r.W, r.Generator
+	room.Generator = generatorVersion
 	generator := &Server{rules: s.rules}
 	base := generator.generateTerrainBase(room, c)
+	if err := generator.generateStructures(room, c, base); err != nil {
+		return nil, err
+	}
 	d := chunkData(room, c, base)
 	for _, spawn := range generator.pendingVillageSpawns {
 		// Coordinates are absolute; binding to the authoritative room happens

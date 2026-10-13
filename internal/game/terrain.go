@@ -6,7 +6,7 @@ import "math"
 // physics and persistence; terrain is generated lazily throughout that space.
 const worldBorder = 30000000
 const chunkVolume = 16 * 16 * 128
-const generatorVersion = "noise-v1"
+const generatorVersion = "noise-v1-structures-v1"
 
 type ChunkCoord struct{ X, Z int }
 
@@ -242,7 +242,6 @@ func (s *Server) generateTerrainBase(r *Room, c ChunkCoord) []byte {
 			}
 		}
 	}
-	s.maybeGenerateVillage(r, c, set, id)
 	return out
 }
 
@@ -250,6 +249,9 @@ func (s *Server) generateTerrainBase(r *Room, c ChunkCoord) []byte {
 // through the cancellable population transaction before they are streamed.
 func (s *Server) generateTerrain(r *Room, c ChunkCoord) []byte {
 	out := s.generateTerrainBase(r, c)
+	if err := s.generateStructures(r, c, out); err != nil {
+		panic(err)
+	}
 	for _, plant := range s.vegetationPlan(r, c, out) {
 		out[chunkIndex(plant.X, plant.Y, plant.Z)] = byte(plant.Block)
 	}

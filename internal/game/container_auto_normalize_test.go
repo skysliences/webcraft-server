@@ -185,30 +185,8 @@ func TestVillageBlacksmithChestStandardSize(t *testing.T) {
 	defer s.mu.Unlock()
 
 	r, p := createFixTestWorld(s)
-	sd := seed(r.seedID())
-
-	// 寻找一个村庄区块
-	var targetCoord ChunkCoord
-	found := false
-	for rx := -2; rx <= 2; rx++ {
-		for rz := -2; rz <= 2; rz++ {
-			vHash := terrainHash(sd+777, rx, 0, rz)
-			vcx := rx*8 + int((vHash)%6) + 1
-			vcz := rz*8 + int((vHash>>8)%6) + 1
-			baseY, biome := terrainColumn(sd, vcx*16+8, vcz*16+8)
-			if biome != "ocean" && baseY >= 54 && baseY <= 85 {
-				targetCoord = ChunkCoord{vcx, vcz}
-				found = true
-				break
-			}
-		}
-		if found {
-			break
-		}
-	}
-	if !found {
-		t.Skip("no suitable village chunk in search radius")
-	}
+	r.Infinite = true
+	_, targetCoord := findStructureVillage(t, s, r)
 
 	// 生成地形（含村庄生成）
 	s.generateTerrain(r, targetCoord)

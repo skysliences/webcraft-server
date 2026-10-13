@@ -233,7 +233,7 @@ func chunkStreamingApp(t *testing.T) *Server {
 	if err = os.WriteFile(filepath.Join(root, "plugin.json"), []byte(manifest), 0600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm", PluginDir: parent, PluginTimeout: time.Second})
+	s, err := New(Config{DataDir: dir, EngineFile: findTestEngineFile(), PluginDir: parent, PluginTimeout: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,25 +325,7 @@ func TestBackgroundVillageMetadataAndProtectedSpawnCommit(t *testing.T) {
 	defer s.mu.Unlock()
 	r := vegetationRoom()
 	s.rooms[r.ID] = r
-	var c ChunkCoord
-	found := false
-	for rx := 0; rx < 8 && !found; rx++ {
-		for rz := 0; rz < 8; rz++ {
-			vHash := terrainHash(seed(r.seedID())+777, rx, 0, rz)
-			c = ChunkCoord{rx*8 + int(vHash%6) + 1, rz*8 + int((vHash>>8)%6) + 1}
-			snapshot, err := s.generateChunkSnapshot(r, c)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(snapshot.Containers) > 0 && len(snapshot.VillageSpawns) > 0 {
-				found = true
-				break
-			}
-		}
-	}
-	if !found {
-		t.Fatal("no deterministic village fixture")
-	}
+	_, c := findStructureVillage(t, s, r)
 	r.Dirty = false
 	start := s.eventID
 	s.requestChunkPreparation(r, c)

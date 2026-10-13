@@ -64,31 +64,14 @@ func TestVillageGenerationIntegrity(t *testing.T) {
 	defer s.mu.Unlock()
 
 	r, _ := createFixTestWorld(s)
-	sd := seed(r.seedID())
-	// 找到一个确定的村庄区块
-	var targetCoord ChunkCoord
-	found := false
-	for rx := -2; rx <= 2; rx++ {
-		for rz := -2; rz <= 2; rz++ {
-			vHash := terrainHash(sd+777, rx, 0, rz)
-			vcx := rx*8 + int((vHash)%6) + 1
-			vcz := rz*8 + int((vHash>>8)%6) + 1
-			baseY, biome := terrainColumn(sd, vcx*16+8, vcz*16+8)
-			if biome != "ocean" && baseY >= 54 && baseY <= 85 {
-				targetCoord = ChunkCoord{vcx, vcz}
-				found = true
-				break
-			}
-		}
-		if found {
-			break
+	r.Infinite = true
+	center, _ := findStructureVillage(t, s, r)
+	var out []byte
+	for dz := -4; dz <= 4; dz++ {
+		for dx := -4; dx <= 4; dx++ {
+			out = append(out, s.generateTerrain(r, ChunkCoord{center.X + dx, center.Z + dz})...)
 		}
 	}
-	if !found {
-		t.Skip("no suitable village chunk in search radius")
-	}
-
-	out := s.generateTerrain(r, targetCoord)
 	hasDoorLower := false
 	hasDoorUpper := false
 	hasBedFoot := false
@@ -103,10 +86,10 @@ func TestVillageGenerationIntegrity(t *testing.T) {
 		if b == 118 {
 			hasDoorUpper = true
 		}
-		if b == 132 {
+		if b >= 132 && b <= 135 {
 			hasBedFoot = true
 		}
-		if b == 136 {
+		if b >= 136 && b <= 139 {
 			hasBedHead = true
 		}
 		if b == 146 { // Farmland (Wet)
