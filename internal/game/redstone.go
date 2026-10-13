@@ -14,6 +14,12 @@ func (s *Server) blockPowered(r *Room, x, y, z int) bool {
 
 // powerAt returns the redstone power level (0..15) delivered to a position.
 func (s *Server) powerAt(r *Room, x, y, z int) int {
+	return s.powerAtWithConduction(r, x, y, z, true)
+}
+
+// Torch attachments receive power from adjacent sources and wires. A powered
+// solid neighbour cannot conduct through a second solid attachment block.
+func (s *Server) powerAtWithConduction(r *Room, x, y, z int, includePoweredBlocks bool) int {
 	k := blockKey(x, y, z)
 	if r.rt().redstoneQueryDepth >= 16 || r.rt().redstoneQueries[k] {
 		return 0
@@ -27,8 +33,14 @@ func (s *Server) powerAt(r *Room, x, y, z int) int {
 	best := 0
 	for _, d := range faceOffsets {
 		nx, ny, nz := x+d[0], y+d[1], z+d[2]
-		if p := s.emittedPower(r, nx, ny, nz, -d[0], -d[1], -d[2]); p > best {
-			best = p
+		var power int
+		if includePoweredBlocks {
+			power = s.emittedPower(r, nx, ny, nz, -d[0], -d[1], -d[2])
+		} else {
+			power = max(s.directPowerSource(r, nx, ny, nz, -d[0], -d[1], -d[2]), getRedstone(r).Wires[blockKey(nx, ny, nz)])
+		}
+		if power > best {
+			best = power
 		}
 	}
 	return best

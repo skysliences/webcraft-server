@@ -366,7 +366,7 @@ func (s *Server) directPowerSource(r *Room, x, y, z, dx, dy, dz int) int {
 			return 0
 		}
 		if dy == 1 || (dy == 0 && (dx != 0 || dz != 0)) {
-			if !s.blockPowered(r, x-off[0], y-off[1], z-off[2]) {
+			if s.powerAtWithConduction(r, x-off[0], y-off[1], z-off[2], false) == 0 {
 				return 15
 			}
 		}
