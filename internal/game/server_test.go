@@ -85,7 +85,9 @@ func findTestEngineFile() string {
 
 func testApp(t *testing.T, dir string) (*Server, *httptest.Server) {
 	t.Helper()
-	app, err := New(Config{DataDir: dir, EngineFile: findTestEngineFile(), AllowedOrigins: []string{"http://127.0.0.1:8080"}, MaxPlayers: 4})
+	spawning := DefaultMobSpawningConfig()
+	spawning.GenerateChunkAnimals = false // Isolated mechanics tests seed exact worlds.
+	app, err := New(Config{MobSpawning: &spawning, DataDir: dir, EngineFile: findTestEngineFile(), AllowedOrigins: []string{"http://127.0.0.1:8080"}, MaxPlayers: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,8 +308,10 @@ func TestCreativeMultiplayerAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.mu.Unlock()
-	if err:=app.Close();err!=nil {t.Fatal(err)}
- restored, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm",AllowedOrigins:[]string{"http://127.0.0.1:8080"}})
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm", AllowedOrigins: []string{"http://127.0.0.1:8080"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,15 +320,22 @@ func TestCreativeMultiplayerAndRestart(t *testing.T) {
 	if r.Name != "重命名世界" || r.Lock != 2 || r.Edits[keyBlock] != 5 || r.Players[fixtureID(httpServer.URL, "OwnerPlayer123")].Slot != 4 {
 		t.Fatal("restart lost world or player data")
 	}
-	oldURL:=httpServer.URL
- nextHTTP:=httptest.NewServer(restored.Handler());t.Cleanup(nextHTTP.Close)
- testAccounts.Range(func(k,v any)bool{key:=k.(string);if strings.HasPrefix(key,oldURL+" "){testAccounts.Store(nextHTTP.URL+strings.TrimPrefix(key,oldURL),v)};return true})
- app,httpServer=restored,nextHTTP
- owner,_=connect(t,httpServer.URL,id,"OwnerPlayer123",key)
- fresh, _ := connect(t, httpServer.URL, id, "FreshPlayer123", "")
+	oldURL := httpServer.URL
+	nextHTTP := httptest.NewServer(restored.Handler())
+	t.Cleanup(nextHTTP.Close)
+	testAccounts.Range(func(k, v any) bool {
+		key := k.(string)
+		if strings.HasPrefix(key, oldURL+" ") {
+			testAccounts.Store(nextHTTP.URL+strings.TrimPrefix(key, oldURL), v)
+		}
+		return true
+	})
+	app, httpServer = restored, nextHTTP
+	owner, _ = connect(t, httpServer.URL, id, "OwnerPlayer123", key)
+	fresh, _ := connect(t, httpServer.URL, id, "FreshPlayer123", "")
 	_ = fresh
 	// A key with high bits must not alias a valid world coordinate.
-	owner.WriteMessage(websocket.BinaryMessage, append(binary.LittleEndian.AppendUint32([]byte{2},toWireKey(keyBlock)|1<<31),7))
+	owner.WriteMessage(websocket.BinaryMessage, append(binary.LittleEndian.AppendUint32([]byte{2}, toWireKey(keyBlock)|1<<31), 7))
 	send(t, owner, map[string]any{"t": "undoBuilders"})
 	receive(t, owner, "undoBuilders")
 	app.mu.Lock()
@@ -428,8 +439,8 @@ func TestSurvivalMiningCraftingAndHealth(t *testing.T) {
 	if furnace.Slots[0] != nil || furnace.Slots[2].ID != app.rules.byName["Iron Ingot"] {
 		t.Fatal("smelting did not consume input and fuel")
 	}
-	r.ext().Rules["keepInventory"]=true
- app.damage(p, 20, "测试死亡")
+	r.ext().Rules["keepInventory"] = true
+	app.damage(p, 20, "测试死亡")
 	app.mu.Unlock()
 	receive(t, c, "dead")
 	send(t, c, map[string]any{"t": "respawn"})
@@ -444,8 +455,10 @@ func TestSurvivalMiningCraftingAndHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.mu.Unlock()
-	if err:=app.Close();err!=nil {t.Fatal(err)}
- restored, err := New(Config{DataDir: app.config.DataDir, EngineFile: "../../../public/engine.wasm"})
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := New(Config{DataDir: app.config.DataDir, EngineFile: "../../../public/engine.wasm"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +546,7 @@ func TestSaveFailureRetriesAndCorruptSaveIsProtected(t *testing.T) {
 	corruptFile := filepath.Join(dir, "rooms", DefaultRoom+".json")
 	original := []byte(`{broken save`)
 	os.WriteFile(corruptFile, original, 0600)
-	damaged, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm",AllowedOrigins:[]string{"http://127.0.0.1:8080"}})
+	damaged, err := New(Config{DataDir: dir, EngineFile: "../../../public/engine.wasm", AllowedOrigins: []string{"http://127.0.0.1:8080"}})
 	if err == nil {
 		damaged.Close()
 		t.Fatal("corrupt save was silently replaced")

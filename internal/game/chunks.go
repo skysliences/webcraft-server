@@ -150,6 +150,9 @@ func (s *Server) ensureChunk(r *Room, c ChunkCoord) (*WorldChunk, error) {
 	}
 	s.restoreChunkLeafDecay(r, c, v)
 	if generated {
+		if !legacyChunkCoord(r, c) && v.VegetationVersion == vegetationVersion {
+			s.spawnChunkAnimals(r, c)
+		}
 		// Structure generation may produce loot and entity intents. The detached
 		// worker cannot publish them; only a committed world chunk may do so.
 		for _, spawn := range d.VillageSpawns {

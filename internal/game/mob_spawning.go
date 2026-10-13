@@ -8,7 +8,7 @@ import (
 )
 
 func DefaultMobSpawningConfig() api.MobSpawningConfig {
-	return api.MobSpawningConfig{MonsterLimit: 70, AnimalLimit: 10, SpawnRange: 6, MonsterInterval: 1, AnimalInterval: 400, AttemptsPerTick: 0, SpawnsPerTick: 0, TotalLimit: 1024}
+	return api.MobSpawningConfig{GenerateChunkAnimals: true, MonsterLimit: 70, AnimalLimit: 10, SpawnRange: 6, MonsterInterval: 1, AnimalInterval: 400, AttemptsPerTick: 0, SpawnsPerTick: 0, TotalLimit: 1024}
 }
 
 func validateMobSpawningConfig(c api.MobSpawningConfig) error {
@@ -141,11 +141,8 @@ func (s *Server) naturalSpawnPosition(r *Room, typ string, x, y, z int) bool {
 	if !s.canNaturalSpawn(r, typ, x, y, z) {
 		return false
 	}
-	for _, m := range r.Mobs {
-		width := (mobSpecs[typ].Width + mobSpecs[m.Type].Width) / 2
-		if math.Abs(m.Y-float64(y)) < mobSpecs[typ].Height && math.Hypot(m.X-float64(x)-.5, m.Z-float64(z)-.5) < width {
-			return false
-		}
+	if !s.naturalSpawnCollisionFree(r, typ, float64(x)+.5, float64(y), float64(z)+.5) {
+		return false
 	}
 	return true
 }
@@ -237,7 +234,7 @@ func (s *Server) spawnAmbientMobs(r *Room) {
 						if count >= limit || cfg.SpawnsPerTick > 0 && spawned >= cfg.SpawnsPerTick || groupSpawned >= 4 || !s.mobCapacity(r, 1) {
 							break
 						}
-						if !s.naturalLocalCap(r, category, px, pz) || !s.naturalSpawnPosition(r, entry.Type, px, y, pz) || s.naturalWorldSpawnDistance(r, float64(px)+.5, float64(y), float64(pz)+.5) <= 24 {
+						if !s.naturalLocalCap(r, category, px, pz) || !s.naturalTypeAllowed(r, entry.Type, px, y, pz) || !s.naturalSpawnPosition(r, entry.Type, px, y, pz) || s.naturalWorldSpawnDistance(r, float64(px)+.5, float64(y), float64(pz)+.5) <= 24 {
 							continue
 						}
 						light := s.naturalSpawnLight(r, px, y, pz)

@@ -153,7 +153,7 @@ func (s *Server) serverDescriptor(w http.ResponseWriter, req *http.Request) {
 	}
 	data := map[string]any{"service": "mcraft-go", "apiVersion": api.APIVersion, "singleWorld": s.config.SingleWorld, "online": s.online(), "cap": s.config.MaxPlayers, "world": map[string]any{"id": r.ID, "name": r.Name, "mode": r.Mode}, "joinPath": "/r/" + r.ID}
 	data["mobSpawning"] = s.config.MobSpawning
- data["mobSpawningRules"] = map[string]any{"reference":"Spigot 26.3", "logicalTicksPerSecond":20, "hostTicksPerSecond":10, "globalCapDivisor":289,"playerExclusion":24,"hardDespawnDistance":128,"skyLightRandomBound":32,"overworldBlockLightLimit":0,"overworldLocalLightRange":[]int{0,7},"netherBlockLightLimit":15,"netherLocalLightLimit":7,"endBlockLightLimit":0,"endLocalLightLimit":15,"unsupportedCategories":[]string{"water-animal","water-ambient","water-underground-creature","ambient","axolotl"}}
+	data["mobSpawningRules"] = map[string]any{"reference": "Spigot 26.3", "logicalTicksPerSecond": 20, "hostTicksPerSecond": 10, "globalCapDivisor": 289, "playerExclusion": 24, "hardDespawnDistance": 128, "skyLightRandomBound": 32, "overworldBlockLightLimit": 0, "overworldLocalLightRange": []int{0, 7}, "netherBlockLightLimit": 15, "netherLocalLightLimit": 7, "endBlockLightLimit": 0, "endLocalLightLimit": 15, "unsupportedCategories": []string{"water-animal", "water-ambient", "water-underground-creature", "ambient", "axolotl"}}
 	if s.identity != nil {
 		data["auth"] = map[string]any{"mode": "central", "issuer": s.identity.issuer, "serverId": s.identity.serverID}
 	}

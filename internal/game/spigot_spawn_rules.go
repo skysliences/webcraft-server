@@ -51,7 +51,7 @@ func (s *Server) naturalBiome(r *Room, x, z int) string {
 	return biome
 }
 func (s *Server) naturalFortress(r *Room, x, y, z int) bool {
-	if r.dimName() != "nether" || s.block(r, x, y-1, z) != s.rules.byName["Under Bricks"] {
+	if r.dimName() != "nether" {
 		return false
 	}
 	if r.Infinite && !legacyChunkCoord(r, chunkCoord(x, z)) {
@@ -152,4 +152,62 @@ func (s *Server) naturalWorldSpawnDistance(r *Room, x, y, z float64) float64 {
 func (s *Server) naturalContext(r *Room, x, y, z int, limit, count, chunks int, tick uint64) map[string]any {
 	light := s.naturalSpawnLight(r, x, y, z)
 	return map[string]any{"categoryLimit": limit, "categoryCount": count, "eligibleChunks": chunks, "biome": s.naturalBiome(r, x, z), "skyLight": light.sky, "blockLight": light.block, "localLight": light.local, "minecraftTick": tick, "spawningRules": "spigot-26.3"}
+}
+
+func (s *Server) spawnChunkAnimals(r *Room, c ChunkCoord) {
+	if s.config.MobSpawning == nil || s.rng == nil {
+		return
+	}
+	if !s.config.MobSpawning.GenerateChunkAnimals || r.dimName() != "overworld" || !s.mobSpawningAllowed(r) || !s.mobCapacity(r, 1) {
+		return
+	}
+	previous := r.rt().spawnLights
+	r.rt().spawnLights = newSpawnLighting()
+	defer func() { r.rt().spawnLights = previous }()
+	for s.rng.Float64() < .1 {
+		x, z := c.X*16+1+s.rng.Intn(14), c.Z*16+1+s.rng.Intn(14)
+		y := s.surface(r, x, z)
+		entry, supported := s.selectNaturalEntry(r, "animal", x, y, z)
+		if !supported {
+			continue
+		}
+		size := entry.Min + s.rng.Intn(entry.Max-entry.Min+1)
+		for member := 0; member < size && s.mobCapacity(r, 1); member++ {
+			for attempt := 0; attempt < 4; attempt++ {
+				x = c.X*16 + min(14, max(1, x-c.X*16+s.rng.Intn(5)-s.rng.Intn(5)))
+				z = c.Z*16 + min(14, max(1, z-c.Z*16+s.rng.Intn(5)-s.rng.Intn(5)))
+				y = s.surface(r, x, z)
+				if !s.mobAreaLoaded(r, entry.Type, float64(x)+.5, float64(z)+.5) || !s.canNaturalSpawn(r, entry.Type, x, y, z) || !s.naturalTypeAllowed(r, entry.Type, x, y, z) || !s.naturalSpawnCollisionFree(r, entry.Type, float64(x)+.5, float64(y), float64(z)+.5) {
+					continue
+				}
+				context := s.naturalContext(r, x, y, z, 0, 0, 1, s.tick*2)
+				context["source"] = "chunk_generation"
+				m, err := s.prepareMob(r, nil, entry.Type, float64(x)+.5, float64(y), float64(z)+.5, "chunk_generation", context)
+				if err == nil && s.canNaturalSpawn(r, entry.Type, x, y, z) && s.naturalTypeAllowed(r, entry.Type, x, y, z) && s.naturalSpawnCollisionFree(r, entry.Type, float64(x)+.5, float64(y), float64(z)+.5) {
+					s.publishMob(r, nil, m, "chunk_generation", context)
+					break
+				}
+			}
+		}
+	}
+}
+func (s *Server) naturalSpawnCollisionFree(r *Room, typ string, x, y, z float64) bool {
+	spec := mobSpecs[typ]
+	for _, m := range r.Mobs {
+		other := mobSpecs[m.Type]
+		width := (spec.Width + other.Width) / 2
+		if y < m.Y+other.Height && y+spec.Height > m.Y && math.Abs(x-m.X) < width && math.Abs(z-m.Z) < width {
+			return false
+		}
+	}
+	for p := range r.Peers {
+		if p.state == nil || p.state.Dead || s.isSpectator(p) {
+			continue
+		}
+		width := (spec.Width + .6) / 2
+		if y < p.state.Y+1.8 && y+spec.Height > p.state.Y && math.Abs(x-p.state.X) < width && math.Abs(z-p.state.Z) < width {
+			return false
+		}
+	}
+	return true
 }

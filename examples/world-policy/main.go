@@ -16,6 +16,7 @@ func main() {
 		AllowedPrimaryWorldID     string   `json:"allowedPrimaryWorldId"`
 		BlockedSpawnEggTypes      []string `json:"blockedSpawnEggTypes"`
 		BlockedNaturalMobTypes    []string `json:"blockedNaturalMobTypes"`
+		BlockedNaturalBiomes      []string `json:"blockedNaturalBiomes"`
 		BlockedDimensions         []string `json:"blockedDimensions"`
 		PreserveDistantMobs       bool     `json:"preserveDistantMobs"`
 		BlockedRedstoneComponents []string `json:"blockedRedstoneComponents"`
@@ -141,7 +142,12 @@ func main() {
 		return nil
 	})
 	p.On(api.EntitySpawning, api.Subscription{Priority: api.High}, func(c *api.Context, e *api.Event) error {
-		if mob := e.MobLifecycle(); mob != nil && mob.SpawnReason == "natural" {
+		if mob := e.MobLifecycle(); mob != nil && (mob.SpawnReason == "natural" || mob.SpawnReason == "chunk_generation") {
+			for _, biome := range config.BlockedNaturalBiomes {
+				if mob.Biome == biome {
+					e.Cancel("world_policy.biome_denied")
+				}
+			}
 			for _, kind := range config.BlockedNaturalMobTypes {
 				if mob.Type == kind {
 					e.Cancel("world_policy.natural_mob_denied")

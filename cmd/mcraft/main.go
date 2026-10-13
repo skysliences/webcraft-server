@@ -88,6 +88,13 @@ func main() {
 			*setting.value = value
 		}
 	}
+	if raw := os.Getenv("MOB_GENERATE_CHUNK_ANIMALS"); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			log.Fatal("MOB_GENERATE_CHUNK_ANIMALS must be true or false")
+		}
+		mobs.GenerateChunkAnimals = value
+	}
 	config.MobSpawning = &mobs
 	config.InfiniteWorlds = env("INFINITE_WORLDS", "true") != "false"
 	legacyMultiWorld, err := strconv.ParseBool(env("LEGACY_MULTI_WORLD", "false"))

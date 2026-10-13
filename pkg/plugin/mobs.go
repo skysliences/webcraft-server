@@ -5,14 +5,15 @@ import "encoding/json"
 // MobSpawningConfig follows Bukkit's category limits and Minecraft tick units.
 // Limits apply to natural spawning; TotalLimit is a separate host safety limit.
 type MobSpawningConfig struct {
-	MonsterLimit    int `json:"monsterLimit"`
-	AnimalLimit     int `json:"animalLimit"`
-	SpawnRange      int `json:"spawnRange"`
-	MonsterInterval int `json:"monsterInterval"`
-	AnimalInterval  int `json:"animalInterval"`
-	AttemptsPerTick int `json:"attemptsPerTick"`
-	SpawnsPerTick   int `json:"spawnsPerTick"`
-	TotalLimit      int `json:"totalLimit"`
+	GenerateChunkAnimals bool `json:"generateChunkAnimals"`
+	MonsterLimit         int  `json:"monsterLimit"`
+	AnimalLimit          int  `json:"animalLimit"`
+	SpawnRange           int  `json:"spawnRange"`
+	MonsterInterval      int  `json:"monsterInterval"`
+	AnimalInterval       int  `json:"animalInterval"`
+	AttemptsPerTick      int  `json:"attemptsPerTick"`
+	SpawnsPerTick        int  `json:"spawnsPerTick"`
+	TotalLimit           int  `json:"totalLimit"`
 }
 
 // MobLifecycle preserves the API v1 fields and adds read-only spawn/despawn
@@ -36,12 +37,12 @@ type MobLifecycle struct {
 	CategoryCount         int        `json:"categoryCount"`
 	EligibleChunks        int        `json:"eligibleChunks"`
 	Target                *Combatant `json:"target"`
- Biome string `json:"biome,omitempty"`
- SkyLight int `json:"skyLight,omitempty"`
- BlockLight int `json:"blockLight,omitempty"`
- LocalLight int `json:"localLight,omitempty"`
- MinecraftTick uint64 `json:"minecraftTick,omitempty"`
- SpawningRules string `json:"spawningRules,omitempty"`
+	Biome                 string     `json:"biome,omitempty"`
+	SkyLight              int        `json:"skyLight,omitempty"`
+	BlockLight            int        `json:"blockLight,omitempty"`
+	LocalLight            int        `json:"localLight,omitempty"`
+	MinecraftTick         uint64     `json:"minecraftTick,omitempty"`
+	SpawningRules         string     `json:"spawningRules,omitempty"`
 }
 
 func (e *Event) MobLifecycle() *MobLifecycle {

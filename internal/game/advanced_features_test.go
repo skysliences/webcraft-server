@@ -20,7 +20,7 @@ func TestNetherMobsBlazeAndWitherSkeleton(t *testing.T) {
 	r.Dim = "nether"
 
 	// 生成烈焰人 (Y=61 踩在 60 的泥土上)
-	blaze, err := s.spawnMob(r, nil, "blaze", 10.5, 61.0, 10.5, "natural")
+	blaze, err := s.spawnMob(r, nil, "blaze", 10.5, 61.0, 10.5, "test")
 	if err != nil || blaze == nil {
 		t.Fatalf("spawn blaze failed: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestNetherMobsBlazeAndWitherSkeleton(t *testing.T) {
 	}
 
 	// 生成凋灵骷髅
-	ws, err := s.spawnMob(r, nil, "wither_skeleton", 11.0, 61.0, 11.0, "natural")
+	ws, err := s.spawnMob(r, nil, "wither_skeleton", 11.0, 61.0, 11.0, "test")
 	if err != nil || ws == nil {
 		t.Fatalf("spawn wither skeleton failed: %v", err)
 	}

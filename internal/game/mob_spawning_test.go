@@ -21,21 +21,21 @@ func TestMobSpawnBudgetLoadedChunksOverlapAndSpectators(t *testing.T) {
 	p := dropTestPlayer(r, 1, 256.5, 60, 256.5)
 	p.rd = 6
 	r.Peers[p] = true
-	if n := len(s.mobSpawnChunks(r)); n != 169 {
+	if n := len(s.mobSpawnChunks(r)); n != 289 {
 		t.Fatal(n)
 	}
 	q := dropTestPlayer(r, 2, 260.5, 60, 260.5)
 	q.rd = 6
 	r.Peers[q] = true
-	if n := len(s.mobSpawnChunks(r)); n != 169 {
+	if n := len(s.mobSpawnChunks(r)); n != 289 {
 		t.Fatalf("overlap inflated cap: %d", n)
 	}
 	q.state.X = 768.5
-	if n := len(s.mobSpawnChunks(r)); n != 338 {
+	if n := len(s.mobSpawnChunks(r)); n != 578 {
 		t.Fatal(n)
 	}
 	q.state.Ext = &PlayerExt{GameMode: "spectator"}
-	if n := len(s.mobSpawnChunks(r)); n != 169 {
+	if n := len(s.mobSpawnChunks(r)); n != 289 {
 		t.Fatal("spectator counted", n)
 	}
 	p.state.Dead = true
@@ -72,7 +72,11 @@ func TestMobNaturalConditionsCavesDistanceAndPeaceful(t *testing.T) {
 	if !s.naturalSpawnPosition(r, "cow", 12, 60, 10) {
 		t.Fatal("sunlit grass")
 	}
-	r.Edits[blockKey(12, 63, 10)] = s.rules.byName["Stone"]
+	for x := 0; x <= 40; x++ {
+		for z := 0; z <= 30; z++ {
+			r.Edits[blockKey(x, 63, z)] = s.rules.byName["Stone"]
+		}
+	}
 	if !s.naturalSpawnPosition(r, "zombie", 12, 60, 10) || s.canNaturalSpawn(r, "cow", 12, 60, 10) {
 		t.Fatal("daylight cave")
 	}
@@ -125,20 +129,33 @@ func TestMobAmbientCapsIntervalsAndIndependentSources(t *testing.T) {
 		}
 	}
 	s.config.MobSpawning.MonsterLimit = 0
+	s.config.MobSpawning.AttemptsPerTick = 32
+	s.config.MobSpawning.SpawnsPerTick = 4
 	s.rng = rand.New(rand.NewSource(2))
 	s.tick = 199
 	s.spawnAmbientMobs(r)
 	if len(r.Mobs) != 0 {
 		t.Fatal("animal interval ignored")
 	}
-	for s.tick = 200; s.tick <= 400; s.tick += 200 {
+	for s.tick = 200; s.tick <= 4000 && len(r.Mobs) < 10; s.tick += 200 {
 		s.spawnAmbientMobs(r)
 	}
-	if len(r.Mobs) != 5 {
-		t.Fatalf("169/289 animal cap expected 5, got %d", len(r.Mobs))
+	if len(r.Mobs) == 0 || len(r.Mobs) > 10 {
+		t.Fatal("animal natural cap violated", len(r.Mobs))
 	}
+	for len(r.Mobs) < 10 {
+		if _, err := s.spawnMob(r, nil, "cow", 12.5, 60, 10.5, "command"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.tick = 4200
+	s.spawnAmbientMobs(r)
+	if len(r.Mobs) != 10 || s.naturalMobCount(r, "animal", nil) != 10 {
+		t.Fatal("manual animals bypassed the natural cap")
+	}
+
 	for _, m := range r.Mobs {
-		if m.SpawnReason != "natural" || !mobPersistent(m) {
+		if !mobPersistent(m) {
 			t.Fatal(m)
 		}
 	}
@@ -147,10 +164,10 @@ func TestMobAmbientCapsIntervalsAndIndependentSources(t *testing.T) {
 			t.Fatal("manual spawn limited by natural cap", err)
 		}
 	}
-	if len(r.Mobs) != 35 {
+	if len(r.Mobs) != 40 {
 		t.Fatal(len(r.Mobs))
 	}
-	s.config.MobSpawning.TotalLimit = 35
+	s.config.MobSpawning.TotalLimit = 40
 	if _, err := s.spawnMob(r, nil, "cow", 12.5, 60, 10.5, "command"); err == nil {
 		t.Fatal("safety cap ignored")
 	}
@@ -167,8 +184,8 @@ func TestMobAmbientCapsIntervalsAndIndependentSources(t *testing.T) {
 			t.Fatal("tick spawn budget exceeded")
 		}
 	}
-	if len(r.Mobs) != 40 {
-		t.Fatalf("169/289 monster cap expected 40, got %d", len(r.Mobs))
+	if len(r.Mobs) != 70 {
+		t.Fatalf("289/289 monster cap expected 70, got %d", len(r.Mobs))
 	}
 	if mobIntervalDue(0, 0) || !mobIntervalDue(1, 1) || mobIntervalDue(199, 400) || !mobIntervalDue(200, 400) {
 		t.Fatal("tick units")
@@ -378,60 +395,37 @@ func TestMobSpawningSaveMigrationAndLoweredCapacity(t *testing.T) {
 	}
 }
 
-func TestEndermanOverworldSpawningDisabled(t *testing.T) {
+func TestEndermanSpigotDimensionsAndExistingEntityRetention(t *testing.T) {
 	s, _ := testApp(t, t.TempDir())
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r, p := mobTestWorld(s)
-	p.state.X, p.state.Z = 100.5, 10.5
-
-	// 1. 在主世界中（黑暗洞穴），验证普通怪物可以自然生成，但末影人严禁自然生成
-	r.Edits[blockKey(12, 63, 10)] = s.rules.byName["Stone"]
-	if !s.canNaturalSpawn(r, "zombie", 12, 60, 10) {
-		t.Fatal("zombie should naturally spawn in dark cave")
-	}
-	if s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
-		t.Fatal("enderman should NOT naturally spawn in overworld")
-	}
-
-	// 2. 验证在末地（Dim == "end"）中，末影人依然可以自然生成
-	r.Dim = "end"
-	if !s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
-		t.Fatal("enderman should naturally spawn in the End")
-	}
-	r.Dim = "overworld"
-
-	// 3. 验证主世界已存在的非持久末影人在 mobsTick 中会被自动清除
-	r.Mobs[101] = &Mob{ID: 101, Type: "enderman", X: 12.5, Y: 60, Z: 10.5, SpawnReason: "natural"}
-	// 持久末影人（如命名牌或显式标记）保留
-	r.Mobs[102] = &Mob{ID: 102, Type: "enderman", X: 12.5, Y: 60, Z: 10.5, Persistent: true}
-	// 普通怪物不被此规则清除
-	r.Mobs[103] = &Mob{ID: 103, Type: "zombie", X: 12.5, Y: 60, Z: 10.5}
-
-	s.mobsTick(r)
-
-	if r.Mobs[101] != nil {
-		t.Fatal("non-persistent overworld enderman should be removed by mobsTick")
-	}
-	if r.Mobs[102] == nil {
-		t.Fatal("persistent enderman should be preserved")
-	}
-	if r.Mobs[103] == nil {
-		t.Fatal("regular monster should not be removed by enderman restriction")
-	}
-
-	// 4. 验证主世界自然怪物刷怪循环中绝不生成末影人
-	r.Mobs = map[uint32]*Mob{}
-	r.Time = 18000
-	s.rng = rand.New(rand.NewSource(42))
-	for i := 1; i <= 200; i++ {
-		s.tick = uint64(i)
-		s.spawnAmbientMobs(r)
-	}
-	for _, m := range r.Mobs {
-		if m.Type == "enderman" {
-			t.Fatal("ambient spawning produced an enderman in overworld")
+	p.state.X = 100.5
+	for x := 0; x <= 40; x++ {
+		for z := 0; z <= 30; z++ {
+			r.Edits[blockKey(x, 64, z)] = 1
 		}
 	}
+	if !s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
+		t.Fatal("dark overworld Enderman")
+	}
+	r.Dim = "end"
+	if !s.canNaturalSpawn(r, "enderman", 12, 60, 10) {
+		t.Fatal("End Enderman")
+	}
+	r.Dim = ""
+	r.Mobs[101] = &Mob{ID: 101, Type: "enderman", X: 12.5, Y: 60, Z: 10.5, Health: 40, SpawnReason: "natural"}
+	s.mobsTick(r)
+	if r.Mobs[101] == nil {
+		t.Fatal("saved entity erased")
+	}
+	found := false
+	for _, e := range spigotSpawnTables["plains"]["monster"] {
+		if e.Type == "enderman" && e.Weight == 10 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("native Enderman weight")
+	}
 }
-

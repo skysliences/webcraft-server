@@ -201,12 +201,22 @@ func (s *Server) prepareMobWithFlags(r *Room, p *Peer, typ string, x, y, z float
 	if !validMob(m) {
 		return nil, fmt.Errorf("无效生物状态。")
 	}
- if reason=="natural" && !s.naturalSpawnPosition(r,typ,int(math.Floor(x)),int(y),int(math.Floor(z))) {return nil,fmt.Errorf("natural_spawn.invalid_position")}
+	if reason == "natural" && (!s.naturalSpawnPosition(r, typ, int(math.Floor(x)), int(y), int(math.Floor(z))) || !s.naturalTypeAllowed(r, typ, int(math.Floor(x)), int(y), int(math.Floor(z)))) {
+		return nil, fmt.Errorf("natural_spawn.invalid_position")
+	}
 	if !s.allowed(api.EntitySpawning, r, p, mobLifecycleData(p, m, reason, context)) {
 		return nil, fmt.Errorf("生物生成已被插件阻止。")
 	}
- if reason=="natural" && (!s.mobCapacity(r,len(reserved)+1)||!s.naturalSpawnPosition(r,typ,int(math.Floor(x)),int(y),int(math.Floor(z)))) {return nil,fmt.Errorf("natural_spawn.validation_changed")}
- return m,nil
+	if reason == "natural" || reason == "chunk_generation" {
+		if lights := r.rt().spawnLights; lights != nil {
+			clear(lights.columns)
+			clear(lights.sources)
+		}
+	}
+	if reason == "natural" && (!s.mobCapacity(r, len(reserved)+1) || !s.naturalSpawnPosition(r, typ, int(math.Floor(x)), int(y), int(math.Floor(z))) || !s.naturalTypeAllowed(r, typ, int(math.Floor(x)), int(y), int(math.Floor(z)))) {
+		return nil, fmt.Errorf("natural_spawn.validation_changed")
+	}
+	return m, nil
 }
 func contextualMobData(m *Mob, reason string, context map[string]any) map[string]any {
 	data := map[string]any{}
@@ -300,9 +310,6 @@ func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 	if !s.mobFits(r, typ, float64(x)+.5, float64(y), float64(z)+.5) {
 		return false
 	}
-	if !s.naturalTypeAllowed(r, typ, x, y, z) {
-		return false
-	}
 	if spec.Hostile {
 		if typ == "blaze" {
 			return true
@@ -314,7 +321,15 @@ func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 		}
 		return l.block <= blockLimit && l.local <= l.threshold
 	}
-	return floor == s.rules.byName["Grass Block"] && max(s.mobSkyLight(r, x, y, z), s.blockLight(r, x, y, z)) >= 9
+	spawnFloor := floor == s.rules.byName["Grass Block"]
+	if typ == "wolf" {
+		// Mojang wolves_spawnable_on differs from the generic animal tag.
+		switch s.nameOf(floor) {
+		case "Grass Block", "Snow Block", "Coarse Dirt", "Podzol", "Snow", "Snow Layer":
+			spawnFloor = true
+		}
+	}
+	return spawnFloor && max(s.mobSkyLight(r, x, y, z), s.blockLight(r, x, y, z)) >= 9
 }
 func mobPosition(out []byte, m *Mob) []byte {
 	out = entityPosition(out, &ItemDrop{X: m.X, Y: m.Y, Z: m.Z})

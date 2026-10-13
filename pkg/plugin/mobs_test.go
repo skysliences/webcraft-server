@@ -26,7 +26,7 @@ func TestMobLifecycleSDKAndReadonlyCatalog(t *testing.T) {
 		if spec.Cancellable != before || len(spec.Mutable) != 0 {
 			t.Fatal(spec)
 		}
-		for _, field := range []string{"spawnReason", "persistent", "actor", "source", "target", "categoryLimit", "eligibleChunks"} {
+		for _, field := range []string{"spawnReason", "persistent", "actor", "source", "target", "categoryLimit", "eligibleChunks", "biome", "skyLight", "blockLight", "localLight", "minecraftTick", "spawningRules"} {
 			found := false
 			for _, f := range spec.Fields {
 				if f == field {

@@ -18,7 +18,7 @@ func main() {
 		BlockedWord            string  `json:"blockedWord"`
 		ChatPrefix             string  `json:"chatPrefix"`
 		CenterProtectionRadius float64 `json:"centerProtectionRadius"`
-	}{Greeting: "欢迎来到 Mcraft！输入 /hello、/where、/plugins 体验插件。"}
+	}{Greeting: "欢迎玩家来到ccraft官方服务器。"}
 	var dataFile string
 	var visits uint64
 	p.OnEnable = func(c *api.Context) error {

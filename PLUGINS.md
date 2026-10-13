@@ -784,37 +784,15 @@ SDK `Context.ActivateHopper(e,x,y,z,expectedFiveSlots)` 和 `Context.FeedAnimal(
 浏览器事件目录新增上述同名自动化、动物成长、经验和供电事件；本地快照同样递归只读，before 可取消，失败不发送成功事件。离线订阅入口为 `LocalSimulation.events.on`；`automation.feed` / `automation.activate` 与玩家操作、定时器共用事务入口，并防止同步回调重入。时长、食物、动物空间参数通过 `rules/automation.js` 导出到规则 JSON，以 Go 一致性测试校验。无需更改 API v1、Go SDK 现有动作、`GET /api/events` 的名字或旧存档格式。
 
 
-## 生物生成与清除策略
+## Spigot 26.3 自然生物生成
 
-Go 多人服参考 [Spigot 的 mob-spawn-range 配置](https://www.spigotmc.org/wiki/spigot-configuration/)和 [Bukkit 分类上限及生成间隔](https://docs.papermc.io/paper/reference/bukkit-configuration/)。这是按现有物种、地形和 Go 模拟实现的相近规则，未实现原版完整生物群系权重、水生/环境生物分类或结构生成表；浏览器离线模拟保留独立的 32 只预算。
+完整规则、线上旧配置与新版默认值的区别见 [NATURAL_SPAWNING.md](NATURAL_SPAWNING.md)。自然生成基准怪物 70、动物 10，间隔 1/400 Minecraft ticks；全局有效统计区块除以 289，实际尝试范围单独受 Spigot 范围与视距约束；新增玩家局部容量校验。默认全局采样/成功预算从 32/4 改为 0/0（按区块和分类规则），旧显式配置仍有效。全来源单维度安全上限仍为 1024，不删除现有世界数据。
 
-| 环境变量 | 默认 | 规则 |
-| --- | --- | --- |
-| `MOB_MONSTER_LIMIT` | 70 | 自然怪物基准，0 禁止该分类自然生成；0..1000 |
-| `MOB_ANIMAL_LIMIT` | 10 | 自然动物基准，0 禁止该分类自然生成；0..1000 |
-| `MOB_SPAWN_RANGE` | 6 | 玩家周围区块半径，1..8，并受客户端视距和已加载地形约束 |
-| `MOB_MONSTER_INTERVAL` | 1 | Minecraft ticks，0 暂停；0..12000 |
-| `MOB_ANIMAL_INTERVAL` | 400 | Minecraft ticks，默认约 20 秒；0 暂停；0..12000 |
-| `MOB_SPAWN_ATTEMPTS` | 32 | 每次每分类最多采样次数，1..128；每次最多尝试同种 4 只小群 |
-| `MOB_SPAWNS_PER_TICK` | 4 | 每维度每服务端 tick 的自然生成总成功预算，1..32 |
-| `MOB_TOTAL_LIMIT` | 1024 | 所有生物生成入口的单维度安全上限，1..4096 |
+光照检查包括透光玻璃、侧向天光、树叶衰减、全部已加载地形光源与动态红石灯。晴天露天不刷新普通自然怪物，白天真正黑暗的洞穴仍可刷新；雷暴使用上游专门条件。选种与群体大小使用官方生物群系权重，主世界末影人恢复自然选种，移除旧自动删除规则。新区块初始动物为独立 `chunk_generation` 来源，由 `MOB_GENERATE_CHUNK_ANIMALS` 控制，遵守相同可取消生成入口及安全上限；加载旧区块和恢复存档不会重复生成。
 
-分类自然上限为 `floor(基准 × 去重后的有效区块数 / 289)`。单人完整 6 区块半径覆盖 169 区块，对应怪物 40、动物 5；较小视距或地形尚未加载时更低，极小区域的动物上限可能为 0。靠近的玩家不会重复增加同一区块预算；相距较远的玩家区域共同增加预算。下界/末地分别计数。仅活着、已连接且非旁观模式的玩家触发生成或用于距离判断。不会为了生成而强制加载未加载的区块。
+API v1 的生命周期事件与旧字段不变。新增只读审计字段 `biome`、`skyLight`（原始天光）、`blockLight`、`localLight`（日夜/天气处理后的局部光）、`minecraftTick`、`spawningRules=spigot-26.3`；`EntitySpawning/EntitySpawned` 的 SDK `MobLifecycle()` 提供同名字段。`GET /api/server` 保留 `mobSpawning` 并新增 `mobSpawningRules`，公开参考版本、逻辑频率、光照阈值与未实现分类。`GET /api/events` 同步字段，字段不可被插件改写，Monitor 不可取消、改值或发动作。提交前重新验证自然位置，失败、取消都不发完成事件。
 
-自然生物必须离所有有效玩家及世界出生点超过 24 格，且距最近有效玩家不超过 128 格。检查地面、身体空间、液体及现有生物碰撞。主世界怪物需方块光为 0、天光不超过 7，因此白天有屋顶的洞穴也可生成；动物需草地和至少 9 级光。天光使用服务端简化的屋顶/树叶遮蔽模型，不受客户端亮度设置影响。下界当前支持的烈焰人和凋灵骷髅只在下界砖地面尝试自然生成；末地自然生成末影人，不再随机刷新潜影贝。`doMobSpawning=false` 停止自然生成；和平难度在统一入口拒绝普通敌对生物，保留末影龙、末地水晶和凋灵的原有特殊规则。
-
-怪物每 1 tick 尝试、动物每 400 ticks 尝试，配置使用 Minecraft 20 ticks/秒。Go 宿主当前为 10 Hz，每帧推进 2 Minecraft ticks，间隔按向上取整映射到宿主 tick，最短生成周期实际为 100ms；每次有固定采样和成功预算，因此不是原版 20 TPS 全量模拟。
-
-分类计数覆盖有效区块中的现有实体，包含刷怪蛋/刷怪笼/命令生成的普通怪物；显式持久怪物不占自然怪物限额。动物计入自然动物限额；村民、Boss、潜影贝等属于 misc，不挤占动物分类。分类限额仅阻止后续自然生成，刷怪蛋、繁殖、刷怪笼、结构召唤、命令和插件仍使用各自规则，并统一检查 `MOB_TOTAL_LIMIT`。刷怪笼沿用 10 秒检查、16 格激活及附近最多 4 只的现有逻辑，激活距离改为三维距离并排除旁观者，不受 `doMobSpawning` 或自然分类间隔控制。
-
-被动动物（包括未驯服狼）、村民、Boss、潜影贝及显式持久实体不因玩家走远被清除；未激活或未加载的远处实体暂停 AI、成长和繁殖。普通怪物离最近有效玩家超过 128 格，尝试立即清除；32 格外闲置超过 600 Minecraft ticks（30 秒）后，每服务端 tick 以 1/400 概率尝试清除。回到 32 格内重置闲置时间。无人满足距离计算条件时暂停，避免清空世界。插件取消清除会重置本次闲置计时；持久实体仍可正常受伤、死亡。随机清除概率按 10 Hz 实现，其平均等待时间与原版 20 Hz 有差异。
-
-沿用 API v1 `entity.spawn.before/entity.spawned`、`entity.despawn.before/entity.despawned`，before 可取消，无可修改字段。新增只读数据 `spawnReason`、`category`、`persistent`、`inactiveTicks`、`actor`、`source`、`target`，自然生成还附 `categoryLimit/categoryCount/eligibleChunks`；远距清除附 `nearestPlayerDistance`。`reason` 表示当前操作，稳定清除原因包括 `distance`、`random_distance`，`spawnReason` 保留创建时原因（如 `natural/spawn_egg/breed/spawner/command/plugin/village`）。原有坐标、生命、物品和上下文字段保持兼容。只有成功提交后发完成事件；取消、容量/难度/位置失败没有成功事件，Monitor 只读。
-
-SDK 提供 `Event.MobLifecycle()` 独立快照、`MobSpawningConfig` 和 `Context.SpawnPersistentMob(world, type, x, y, z)`；原 `SpawnMob` 不变，新动作进入同一校验和插件保护入口。`GET /api/server` 暴露当前 `mobSpawning` 配置，`GET /api/events` 发布新增字段。`world-policy` 示例新增默认空的 `blockedNaturalMobTypes`、默认关闭的 `preserveDistantMobs`，并用 Monitor 审计成功生成和清除。
-
-世界存档版本升至 9，新增可选 `spawnReason/persistent/inactiveTicks`。旧动物即使没有持久标记也保留远距保护。第一次覆盖版本 8 或更旧存档前，保留原始文件到 `.json.pre-mob-spawning-vN.bak`；备份失败时不覆盖。实体恢复使用 4096 的存档校验上限，降低运行安全上限不会删除或截断已有实体，只拒绝新增。账号、背包、世界和玩家进度不变。相关验证：`go test -race ./...`、`npm run plugins:build`、`npm run plugins:smoke`。
-
+`world-policy` 的 `blockedNaturalMobTypes` 继续可用，新增 `blockedNaturalBiomes`，同时保护周期与新区块初始生成；默认空列表不影响玩法。显式持久动作继续使用 `SpawnPersistentMob` 与同一生成入口。存档保持现有版本及兼容规则，账号、世界、物品元数据与进度均保留。未实现的水生/蝙蝠等分类以及原版完整地形、结构和特殊刷怪规则，详见上述规则文档，不宣称整个 Minecraft 完全一致。
 
 ## 维度传送指令与插件动作
 
