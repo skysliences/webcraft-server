@@ -238,9 +238,31 @@ func main() {
 			vars["ping"] = strconv.Itoa(pingVal)
 		}
 
-		if timeStr, ok := e.Data["time"].(string); ok && timeStr != "" {
+		timeStr := "12:00"
+		timePhase := "白天"
+		timeTicks := 6000
+
+		if t, ok := e.Data["time"].(string); ok && t != "" {
+			timeStr = t
+		}
+		if phase, ok := e.Data["time_phase"].(string); ok && phase != "" {
+			timePhase = phase
+		}
+		if ticks, ok := e.Data["time_ticks"].(int); ok {
+			timeTicks = ticks
+		} else if ticksF, ok := e.Data["time_ticks"].(float64); ok {
+			timeTicks = int(ticksF)
+		}
+
+		if timePhase != "" {
+			vars["time"] = fmt.Sprintf("%s %s", timeStr, timePhase)
+		} else {
 			vars["time"] = timeStr
 		}
+		vars["time_short"] = timeStr
+		vars["time_phase"] = timePhase
+		vars["time_ticks"] = strconv.Itoa(timeTicks)
+		vars["time_score"] = strconv.Itoa(timeTicks / 100)
 
 		// 替换标题
 		e.Data["title"] = replacePlaceholders(cfg.Title, vars)

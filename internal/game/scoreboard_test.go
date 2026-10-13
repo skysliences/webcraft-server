@@ -149,3 +149,48 @@ func TestScoreboardLifecycleAndCommands(t *testing.T) {
 		t.Fatal("arena objective should be deleted")
 	}
 }
+
+func TestScoreboardTimeProgression(t *testing.T) {
+	s, _ := testApp(t, t.TempDir())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, ap := createAdvancedTestWorld(s)
+
+	type testCase struct {
+		ticks     uint64
+		wantTime  string
+		wantPhase string
+		wantScore int
+	}
+
+	cases := []testCase{
+		{ticks: 6000, wantTime: "12:00", wantPhase: "白天", wantScore: 60},
+		{ticks: 12500, wantTime: "18:30", wantPhase: "黄昏", wantScore: 125},
+		{ticks: 18000, wantTime: "00:00", wantPhase: "黑夜", wantScore: 180},
+		{ticks: 23500, wantTime: "05:30", wantPhase: "清晨", wantScore: 235},
+		{ticks: 24000 + 1000, wantTime: "07:00", wantPhase: "白天", wantScore: 10},
+	}
+
+	for _, tc := range cases {
+		r.Time = tc.ticks
+		pkt := s.buildScoreboardPacket(r, ap)
+		if pkt == nil {
+			t.Fatalf("nil packet for ticks %d", tc.ticks)
+		}
+		entries, ok := pkt["entries"].([]ScoreEntry)
+		if !ok || len(entries) < 3 {
+			t.Fatalf("expected []ScoreEntry with >=3 entries, got %+v", pkt["entries"])
+		}
+		timeEntry := entries[2]
+		if timeEntry.Name != "时刻 "+tc.wantPhase {
+			t.Fatalf("ticks %d: expected name %s, got %s", tc.ticks, "时刻 "+tc.wantPhase, timeEntry.Name)
+		}
+		if timeEntry.Badge != tc.wantTime {
+			t.Fatalf("ticks %d: expected badge %s, got %s", tc.ticks, tc.wantTime, timeEntry.Badge)
+		}
+		if timeEntry.Score != tc.wantScore {
+			t.Fatalf("ticks %d: expected score %d, got %d", tc.ticks, tc.wantScore, timeEntry.Score)
+		}
+	}
+}

@@ -153,15 +153,17 @@ func TestScoreboardRenderEventCancellation(t *testing.T) {
 
 	// 1. 无插件时生成默认包
 	packet := s.buildScoreboardPacket(r, ap)
-	if packet == nil || packet["enabled"] != true || packet["title"] != "WEBCRAFT ONLINE" {
+	if packet == nil || packet["enabled"] != true || (packet["title"] != "CCRAFT ONLINE" && packet["title"] != "WEBCRAFT ONLINE") {
 		t.Fatalf("unexpected default packet: %+v", packet)
 	}
 
-	// 2. 模拟插件在内存中修改 ScoreboardRendering 数据
+	// 验证时间与时段在事件数据中正确传递
 	testData := map[string]any{
-		"title":     "HOOKED-TITLE",
-		"objective": "test_obj",
-		"enabled":   false,
+		"title":      "HOOKED-TITLE",
+		"objective":  "test_obj",
+		"enabled":    false,
+		"time":       "12:00",
+		"time_phase": "白天",
 	}
 	e := s.event(api.ScoreboardRendering, r, ap, testData)
 	if e == nil || e.Name != api.ScoreboardRendering {

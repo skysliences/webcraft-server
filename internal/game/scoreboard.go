@@ -261,7 +261,7 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 	} else {
 		// 2. 默认智能世界状态计分板（Smart Default Scoreboard）
 		activeObjName = "world_overview"
-		title = "WEBCRAFT ONLINE"
+		title = "CCRAFT ONLINE"
 		onlineCount := len(r.Peers)
 		timeOfDay := r.root().Time % 24000
 		hour := (timeOfDay/1000 + 6) % 24
@@ -272,6 +272,8 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 			timePhase = "黑夜"
 		} else if timeOfDay >= 12000 && timeOfDay < 13000 {
 			timePhase = "黄昏"
+		} else if timeOfDay >= 23000 {
+			timePhase = "清晨"
 		}
 
 		entries = []ScoreEntry{
@@ -346,6 +348,20 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		}
 	}
 
+	// 统一计算当前世界时间信息供插件渲染使用
+	timeOfDay := r.root().Time % 24000
+	hour := (timeOfDay/1000 + 6) % 24
+	minute := (timeOfDay % 1000) * 60 / 1000
+	timeStr := fmt.Sprintf("%02d:%02d", hour, minute)
+	timePhase := "白天"
+	if timeOfDay >= 13000 && timeOfDay < 23000 {
+		timePhase = "黑夜"
+	} else if timeOfDay >= 12000 && timeOfDay < 13000 {
+		timePhase = "黄昏"
+	} else if timeOfDay >= 23000 {
+		timePhase = "清晨"
+	}
+
 	// 3. 插件化渲染扩展 (api.ScoreboardRendering)
 	// 允许插件拦截、接管或重写计分板标题、条目与页脚
 	rawEntries := make([]any, len(entries))
@@ -361,13 +377,17 @@ func (s *Server) buildScoreboardPacket(r *Room, p *Peer) map[string]any {
 		}
 	}
 	renderData := map[string]any{
-		"objective": activeObjName,
-		"title":     title,
-		"entries":   rawEntries,
-		"footer":    footerMap,
-		"enabled":   true,
-		"ping":      0,
-		"online":    len(r.Peers),
+		"objective":  activeObjName,
+		"title":      title,
+		"entries":    rawEntries,
+		"footer":     footerMap,
+		"enabled":    true,
+		"ping":       0,
+		"online":     len(r.Peers),
+		"time":       timeStr,
+		"time_phase": timePhase,
+		"time_ticks": int(timeOfDay),
+		"world_time": int(r.root().Time),
 	}
 	if p != nil {
 		renderData["ping"] = p.ping
