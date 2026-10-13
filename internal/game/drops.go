@@ -11,7 +11,7 @@ import (
 
 const maxWorldDrops = 2048
 const dropLifetimeMS = 300000
-const dropPickupDelayMS = 150
+const dropPickupDelayMS = 500
 
 // ItemDrop is authoritative and persisted with the room. Age advances while
 // the world has players; restarting the process never resets its remaining life.
