@@ -903,3 +903,44 @@ SDK `e.PlayerTransfer()` 返回脱离事件数据的只读快照：保留旧 `fr
     - `c.SetPlayerNametagFull(worldId, playerId, action)`
   - 示例插件参见 `backend/examples/titles/`。
 
+---
+
+## 商店系统插件与市场交易（Shop & Market Plugin）
+
+### 1. 功能概述
+
+系统提供统一的**商店与贸易集市插件系统（Shop System）**，支持高度自定义的商品与回收价格配置、分类管理，并与服务器 SQLite 经济数据库无缝联动，拥有沉浸式的原生体素质感独立 GUI。
+- **配置化商品价格与分类**：
+  - 支持在 `config.json`（或 `shop.json`）中自由配置每个商品的 `buyPrice`（购买单价）与 `sellPrice`（出售回收单价）；若单价 `<= 0` 则自动关闭对应方向的交易通道；
+  - 支持自定义分类（如 `ores` 矿石、`blocks` 建筑、`farming` 农牧食物、`tools` 武器工具、`redstone` 红石机械、`misc` 杂项道具等）；
+- **独立现代化 GUI 界面**：
+  - 玩家在游戏内输入 `/shop` 即可打开独立商店面板；
+  - 包含【🛒 购买商品 (Buy)】与【💰 出售商品 (Sell)】两大标签页自由切换；
+  - 支持分类过滤器一键筛选；
+  - 32x32 物品像素高清图标实时预览；
+  - 数量快速调节器（`-10`、`-1`、输入框、`+1`、`+10`、`[组]`）；输入框采用高对比度暗黑底色与亮金色字体，解决浅色背景白字看不清的问题；
+  - 实时小计计算与钱包余额同步；
+  - 出售模式提供“⚡ 一键出售背包回收物”功能，瞬间变现背包杂物；
+- **经济系统挂钩与原子安全**：
+  - 购买时严格校验钱包余额并原子扣除（`economyDB.Withdraw`），若背包空间已满，超出部分安全掉落在玩家脚下并进入恢复队列，绝不吞物；
+  - 出售时严格按实际拥有的物品数量扣减，并存入收益（`economyDB.Deposit`）；
+  - 支持快捷指令：`/shop buy <商品名/ID> [数量]`、`/shop sell <商品名/ID|hand|all> [数量]`、`/shop reload`（管理员重载配置）；
+
+### 2. 插件事件扩展
+
+- **`shop.buy.before` (`api.ShopBuying`)**：
+  - **触发时机**：玩家在商店点击购买、扣款提交之前触发；
+  - **可取消**：是（`e.Cancel(reason)` 可拦截阻止本次购买，并将拦截理由反馈给玩家）；
+  - **可修改字段**：`count`（购买数量）、`price` / `unitPrice`（支持插件动态给予折扣、VIP 优惠或限购调整）；
+  - **只读字段**：`player`、`playerId`、`itemId`、`itemKey`、`itemName`；
+- **`shop.bought` (`api.ShopBought`)**：
+  - **触发时机**：扣款成功且物品发放完成之后触发的事实通知（用于记录审计日志、成就进度或数据统计）；
+- **`shop.sell.before` (`api.ShopSelling`)**：
+  - **触发时机**：玩家出售商品、扣除背包与发放金币之前触发；
+  - **可取消**：是；
+  - **可修改字段**：`count`、`price` / `unitPrice`；
+- **`shop.sold` (`api.ShopSold`)**：
+  - **触发时机**：出售结算成功后的事实通知；
+- **示例插件**：源码位于 `backend/examples/shop/`，二进制位于 `plugins/shop/`。
+
+

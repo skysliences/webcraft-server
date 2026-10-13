@@ -1,0 +1,406 @@
+{
+  "title": "🛒 WebCraft 贸易集市",
+  "currencySymbol": "$",
+  "discountRate": 1.0,
+  "categories": [
+    { "id": "all", "name": "全部商品", "icon": "chest" },
+    { "id": "ores", "name": "💎 矿石宝石", "icon": "diamond" },
+    { "id": "blocks", "name": "🧱 建筑材料", "icon": "stone" },
+    { "id": "farming", "name": "🥩 农牧食物", "icon": "cooked_beef" },
+    { "id": "tools", "name": "⚔️ 工具武器", "icon": "iron_sword" },
+    { "id": "redstone", "name": "⚙️ 红石机械", "icon": "redstone" },
+    { "id": "misc", "name": "📦 杂项道具", "icon": "torch" }
+  ],
+  "items": [
+    {
+      "id": "diamond",
+      "itemId": 264,
+      "name": "钻石",
+      "category": "ores",
+      "buyPrice": 100.0,
+      "sellPrice": 50.0,
+      "icon": "diamond",
+      "description": "极为珍贵的蓝色宝石"
+    },
+    {
+      "id": "emerald",
+      "itemId": 388,
+      "name": "绿宝石",
+      "category": "ores",
+      "buyPrice": 80.0,
+      "sellPrice": 40.0,
+      "icon": "emerald",
+      "description": "村民贸易常用通用货币"
+    },
+    {
+      "id": "gold_ingot",
+      "itemId": 266,
+      "name": "金锭",
+      "category": "ores",
+      "buyPrice": 30.0,
+      "sellPrice": 15.0,
+      "icon": "gold_ingot",
+      "description": "闪烁着金黄光芒的贵金属"
+    },
+    {
+      "id": "iron_ingot",
+      "itemId": 265,
+      "name": "铁锭",
+      "category": "ores",
+      "buyPrice": 10.0,
+      "sellPrice": 5.0,
+      "icon": "iron_ingot",
+      "description": "工业与装备制造的基础支柱"
+    },
+    {
+      "id": "coal",
+      "itemId": 263,
+      "name": "煤炭",
+      "category": "ores",
+      "buyPrice": 4.0,
+      "sellPrice": 2.0,
+      "icon": "coal",
+      "description": "熔炉冶炼不可或缺的燃料"
+    },
+    {
+      "id": "lapis_lazuli",
+      "itemId": 351,
+      "name": "青金石",
+      "category": "ores",
+      "buyPrice": 6.0,
+      "sellPrice": 3.0,
+      "icon": "lapis_lazuli",
+      "description": "附魔台施加附魔的必备染料"
+    },
+    {
+      "id": "stone",
+      "itemId": 1,
+      "name": "石头",
+      "category": "blocks",
+      "buyPrice": 1.0,
+      "sellPrice": 0.5,
+      "icon": "stone",
+      "description": "地下开采烧制的基础石料"
+    },
+    {
+      "id": "cobblestone",
+      "itemId": 4,
+      "name": "圆石",
+      "category": "blocks",
+      "buyPrice": 0.5,
+      "sellPrice": 0.2,
+      "icon": "cobblestone",
+      "description": "粗糙坚硬的开采石料"
+    },
+    {
+      "id": "dirt",
+      "itemId": 3,
+      "name": "泥土",
+      "category": "blocks",
+      "buyPrice": 0.5,
+      "sellPrice": 0.1,
+      "icon": "dirt",
+      "description": "大地上最平凡肥沃的土壤"
+    },
+    {
+      "id": "oak_log",
+      "itemId": 17,
+      "name": "橡木原木",
+      "category": "blocks",
+      "buyPrice": 2.0,
+      "sellPrice": 1.0,
+      "icon": "oak_wood",
+      "description": "优质坚实的森林木材"
+    },
+    {
+      "id": "oak_planks",
+      "itemId": 5,
+      "name": "橡木木板",
+      "category": "blocks",
+      "buyPrice": 0.8,
+      "sellPrice": 0.3,
+      "icon": "oak_planks",
+      "description": "原木加工成的平整木板"
+    },
+    {
+      "id": "glass",
+      "itemId": 20,
+      "name": "玻璃",
+      "category": "blocks",
+      "buyPrice": 2.0,
+      "sellPrice": 0.8,
+      "icon": "glass",
+      "description": "通透明亮的采光建筑方块"
+    },
+    {
+      "id": "bricks",
+      "itemId": 45,
+      "name": "红砖块",
+      "category": "blocks",
+      "buyPrice": 4.0,
+      "sellPrice": 1.5,
+      "icon": "brick_block",
+      "description": "粘土烧制规整的高档砖石"
+    },
+    {
+      "id": "obsidian",
+      "itemId": 49,
+      "name": "黑曜石",
+      "category": "blocks",
+      "buyPrice": 60.0,
+      "sellPrice": 25.0,
+      "icon": "obsidian",
+      "description": "水火交融淬炼而成的至坚岩石"
+    },
+    {
+      "id": "cooked_beef",
+      "itemId": 364,
+      "name": "牛排",
+      "category": "farming",
+      "buyPrice": 8.0,
+      "sellPrice": 4.0,
+      "icon": "cooked_beef",
+      "description": "鲜嫩多汁的高营养肉排"
+    },
+    {
+      "id": "cooked_porkchop",
+      "itemId": 320,
+      "name": "熟猪排",
+      "category": "farming",
+      "buyPrice": 8.0,
+      "sellPrice": 4.0,
+      "icon": "cooked_porkchop",
+      "description": "香气扑鼻的熟猪肉排"
+    },
+    {
+      "id": "bread",
+      "itemId": 297,
+      "name": "面包",
+      "category": "farming",
+      "buyPrice": 3.0,
+      "sellPrice": 1.5,
+      "icon": "bread",
+      "description": "小麦烘焙的松软口粮"
+    },
+    {
+      "id": "golden_apple",
+      "itemId": 322,
+      "name": "金苹果",
+      "category": "farming",
+      "buyPrice": 150.0,
+      "sellPrice": 60.0,
+      "icon": "golden_apple",
+      "description": "赋予再生与伤害吸收的奇迹果实"
+    },
+    {
+      "id": "wheat",
+      "itemId": 296,
+      "name": "小麦",
+      "category": "farming",
+      "buyPrice": 2.0,
+      "sellPrice": 1.0,
+      "icon": "wheat",
+      "description": "金黄的成熟麦穗"
+    },
+    {
+      "id": "carrot",
+      "itemId": 391,
+      "name": "胡萝卜",
+      "category": "farming",
+      "buyPrice": 2.0,
+      "sellPrice": 1.0,
+      "icon": "carrot",
+      "description": "脆甜可口的农场作物"
+    },
+    {
+      "id": "potato",
+      "itemId": 392,
+      "name": "马铃薯",
+      "category": "farming",
+      "buyPrice": 2.0,
+      "sellPrice": 1.0,
+      "icon": "potato",
+      "description": "耐储存的高产块茎"
+    },
+    {
+      "id": "diamond_sword",
+      "itemId": 276,
+      "name": "钻石剑",
+      "category": "tools",
+      "buyPrice": 300.0,
+      "sellPrice": 100.0,
+      "icon": "diamond_sword",
+      "description": "削铁如泥的终极利刃"
+    },
+    {
+      "id": "diamond_pickaxe",
+      "itemId": 278,
+      "name": "钻石镐",
+      "category": "tools",
+      "buyPrice": 350.0,
+      "sellPrice": 120.0,
+      "icon": "diamond_pickaxe",
+      "description": "能够开采黑曜石的高级矿镐"
+    },
+    {
+      "id": "iron_sword",
+      "itemId": 267,
+      "name": "铁剑",
+      "category": "tools",
+      "buyPrice": 25.0,
+      "sellPrice": 10.0,
+      "icon": "iron_sword",
+      "description": "坚固实用的近战武器"
+    },
+    {
+      "id": "iron_pickaxe",
+      "itemId": 257,
+      "name": "铁镐",
+      "category": "tools",
+      "buyPrice": 30.0,
+      "sellPrice": 12.0,
+      "icon": "iron_pickaxe",
+      "description": "采掘金矿、红石与钻石的利器"
+    },
+    {
+      "id": "bow",
+      "itemId": 261,
+      "name": "弓",
+      "category": "tools",
+      "buyPrice": 30.0,
+      "sellPrice": 10.0,
+      "icon": "bow",
+      "description": "远程狙击敌人的强弓"
+    },
+    {
+      "id": "arrow",
+      "itemId": 262,
+      "name": "箭矢",
+      "category": "tools",
+      "buyPrice": 1.0,
+      "sellPrice": 0.3,
+      "icon": "arrow",
+      "description": "弓箭发射的尖锐弹药"
+    },
+    {
+      "id": "shield",
+      "itemId": 442,
+      "name": "盾牌",
+      "category": "tools",
+      "buyPrice": 20.0,
+      "sellPrice": 8.0,
+      "icon": "shield",
+      "description": "格挡正面物理与远程伤害的坚盾"
+    },
+    {
+      "id": "redstone_dust",
+      "itemId": 108,
+      "name": "红石粉",
+      "category": "redstone",
+      "buyPrice": 5.0,
+      "sellPrice": 2.5,
+      "icon": "redstone",
+      "description": "传输电信号的核心能源"
+    },
+    {
+      "id": "piston",
+      "itemId": 168,
+      "name": "活塞",
+      "category": "redstone",
+      "buyPrice": 15.0,
+      "sellPrice": 6.0,
+      "icon": "piston",
+      "description": "推动方块的机械装置"
+    },
+    {
+      "id": "sticky_piston",
+      "itemId": 169,
+      "name": "粘性活塞",
+      "category": "redstone",
+      "buyPrice": 25.0,
+      "sellPrice": 10.0,
+      "icon": "sticky_piston",
+      "description": "能够拉回方块的强力活塞"
+    },
+    {
+      "id": "tnt",
+      "itemId": 46,
+      "name": "TNT",
+      "category": "redstone",
+      "buyPrice": 50.0,
+      "sellPrice": 20.0,
+      "icon": "tnt",
+      "description": "威力巨大的易爆爆炸物"
+    },
+    {
+      "id": "repeater",
+      "itemId": 166,
+      "name": "红石中继器",
+      "category": "redstone",
+      "buyPrice": 8.0,
+      "sellPrice": 3.0,
+      "icon": "repeater",
+      "description": "延长红石信号并提供延迟"
+    },
+    {
+      "id": "hopper",
+      "itemId": 193,
+      "name": "漏斗",
+      "category": "redstone",
+      "buyPrice": 25.0,
+      "sellPrice": 10.0,
+      "icon": "hopper",
+      "description": "自动收集与传输物品的漏斗"
+    },
+    {
+      "id": "torch",
+      "itemId": 50,
+      "name": "火把",
+      "category": "misc",
+      "buyPrice": 1.0,
+      "sellPrice": 0.2,
+      "icon": "torch",
+      "description": "驱散黑暗并防止怪物生成的照明源"
+    },
+    {
+      "id": "water_bucket",
+      "itemId": 326,
+      "name": "水桶",
+      "category": "misc",
+      "buyPrice": 20.0,
+      "sellPrice": 8.0,
+      "icon": "water_bucket",
+      "description": "盛装生命之源清水的铁桶"
+    },
+    {
+      "id": "lava_bucket",
+      "itemId": 327,
+      "name": "岩浆桶",
+      "category": "misc",
+      "buyPrice": 30.0,
+      "sellPrice": 12.0,
+      "icon": "lava_bucket",
+      "description": "盛装高温岩浆的强力燃料桶"
+    },
+    {
+      "id": "bone",
+      "itemId": 352,
+      "name": "骨头",
+      "category": "misc",
+      "buyPrice": 3.0,
+      "sellPrice": 1.5,
+      "icon": "bone",
+      "description": "骷髅掉落的骨骼，可研磨为骨粉"
+    },
+    {
+      "id": "ender_pearl",
+      "itemId": 368,
+      "name": "末影珍珠",
+      "category": "misc",
+      "buyPrice": 80.0,
+      "sellPrice": 35.0,
+      "icon": "ender_pearl",
+      "description": "投掷后瞬移至落点的神奇珍珠"
+    }
+  ]
+}

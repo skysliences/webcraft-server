@@ -1,0 +1,824 @@
+{
+  "plains": {
+    "animal": [
+      {
+        "type": "sheep",
+        "weight": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "pig",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "chicken",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "cow",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "horse",
+        "weight": 5,
+        "min": 2,
+        "max": 6
+      },
+      {
+        "type": "donkey",
+        "weight": 1,
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 90,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "zombie_horse",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "forest": {
+    "animal": [
+      {
+        "type": "sheep",
+        "weight": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "pig",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "chicken",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "cow",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "wolf",
+        "weight": 5,
+        "min": 4,
+        "max": 4
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 95,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "desert": {
+    "animal": [
+      {
+        "type": "rabbit",
+        "weight": 12,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "type": "camel",
+        "weight": 1,
+        "min": 1,
+        "max": 1
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 19,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 1,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 50,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "husk",
+        "weight": 80,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "parched",
+        "weight": 50,
+        "min": 4,
+        "max": 4
+      }
+    ]
+  },
+  "windswept_hills": {
+    "animal": [
+      {
+        "type": "sheep",
+        "weight": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "pig",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "chicken",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "cow",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "llama",
+        "weight": 5,
+        "min": 4,
+        "max": 6
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 95,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "ocean": {
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 95,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "drowned",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "taiga": {
+    "animal": [
+      {
+        "type": "sheep",
+        "weight": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "pig",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "chicken",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "cow",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "wolf",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "rabbit",
+        "weight": 4,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "type": "fox",
+        "weight": 8,
+        "min": 2,
+        "max": 4
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 95,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "savanna": {
+    "animal": [
+      {
+        "type": "sheep",
+        "weight": 12,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "pig",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "chicken",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "cow",
+        "weight": 8,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "horse",
+        "weight": 1,
+        "min": 2,
+        "max": 6
+      },
+      {
+        "type": "donkey",
+        "weight": 1,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "armadillo",
+        "weight": 10,
+        "min": 2,
+        "max": 3
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 90,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "zombie_horse",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "snowy_plains": {
+    "animal": [
+      {
+        "type": "rabbit",
+        "weight": 10,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "type": "polar_bear",
+        "weight": 1,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 90,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "zombie_horse",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 20,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "stray",
+        "weight": 80,
+        "min": 4,
+        "max": 4
+      }
+    ]
+  },
+  "beach": {
+    "animal": [
+      {
+        "type": "turtle",
+        "weight": 5,
+        "min": 2,
+        "max": 5
+      }
+    ],
+    "monster": [
+      {
+        "type": "spider",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie",
+        "weight": 95,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombie_villager",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      },
+      {
+        "type": "skeleton",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "creeper",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "slime",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 1,
+        "max": 4
+      },
+      {
+        "type": "witch",
+        "weight": 5,
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "nether_wastes": {
+    "animal": [
+      {
+        "type": "strider",
+        "weight": 60,
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "monster": [
+      {
+        "type": "ghast",
+        "weight": 50,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "zombified_piglin",
+        "weight": 100,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "magma_cube",
+        "weight": 2,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "enderman",
+        "weight": 1,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "piglin",
+        "weight": 15,
+        "min": 4,
+        "max": 4
+      }
+    ]
+  },
+  "the_end": {
+    "monster": [
+      {
+        "type": "enderman",
+        "weight": 10,
+        "min": 4,
+        "max": 4
+      }
+    ]
+  },
+  "nether_fortress": {
+    "monster": [
+      {
+        "type": "blaze",
+        "weight": 10,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "type": "zombified_piglin",
+        "weight": 5,
+        "min": 4,
+        "max": 4
+      },
+      {
+        "type": "wither_skeleton",
+        "weight": 8,
+        "min": 5,
+        "max": 5
+      },
+      {
+        "type": "skeleton",
+        "weight": 2,
+        "min": 5,
+        "max": 5
+      },
+      {
+        "type": "magma_cube",
+        "weight": 3,
+        "min": 4,
+        "max": 4
+      }
+    ]
+  }
+}

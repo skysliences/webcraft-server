@@ -234,10 +234,12 @@ func (s *Server) applyRegistry() error {
 	core.Kinds = append(core.Kinds, make([]int, n-len(core.Kinds))...)
 	core.Mining = append(core.Mining, make([]map[string]MiningRule, n-len(core.Mining))...)
 	core.itemModels = map[int]int{}
+	core.blockModels = map[int]int{}
 	for _, e := range s.registry.Entries {
 		if d := e.Block; d != nil {
 			core.Names[d.ID] = d.Name
 			core.Kinds[d.ID] = core.Kinds[d.ModelBlock]
+			core.blockModels[d.ID] = d.ModelBlock
 			core.Mining[d.ID] = map[string]MiningRule{"0": {Ticks: int(math.Ceil(d.Hardness * 30)), Harvest: true}}
 			it := Item{ID: d.ID, Key: d.Key, Name: d.Name, Stack: d.Stack, PlacesID: d.ID}
 			core.byID[d.ID] = it

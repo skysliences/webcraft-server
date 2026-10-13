@@ -57,14 +57,15 @@ type Recipe struct {
 	Ingredients [][]int `json:"ingredients"`
 }
 type Rules struct {
-	Kinds      []int                   `json:"kinds"`
-	Names      []string                `json:"names"`
-	Items      []Item                  `json:"items"`
-	Recipes    []Recipe                `json:"recipes"`
-	Mining     []map[string]MiningRule `json:"mining"`
-	byID       map[int]Item
-	byName     map[string]int
-	itemModels map[int]int // Custom tool IDs reuse the template's mining rules.
+	Kinds       []int                   `json:"kinds"`
+	Names       []string                `json:"names"`
+	Items       []Item                  `json:"items"`
+	Recipes     []Recipe                `json:"recipes"`
+	Mining      []map[string]MiningRule `json:"mining"`
+	byID        map[int]Item
+	byName      map[string]int
+	blockModels map[int]int
+	itemModels  map[int]int // Custom tool IDs reuse the template's mining rules.
 }
 
 func loadRules() (*Rules, error) {

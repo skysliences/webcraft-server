@@ -36,6 +36,12 @@ type MobLifecycle struct {
 	CategoryCount         int        `json:"categoryCount"`
 	EligibleChunks        int        `json:"eligibleChunks"`
 	Target                *Combatant `json:"target"`
+ Biome string `json:"biome,omitempty"`
+ SkyLight int `json:"skyLight,omitempty"`
+ BlockLight int `json:"blockLight,omitempty"`
+ LocalLight int `json:"localLight,omitempty"`
+ MinecraftTick uint64 `json:"minecraftTick,omitempty"`
+ SpawningRules string `json:"spawningRules,omitempty"`
 }
 
 func (e *Event) MobLifecycle() *MobLifecycle {
@@ -59,5 +65,5 @@ func (c *Context) SpawnPersistentMob(world, kind string, x, y, z float64) {
 }
 
 func mobLifecycleFields() []string {
-	return []string{"entityId", "type", "x", "y", "z", "health", "flags", "growthTicks", "reason", "spawnReason", "category", "persistent", "inactiveTicks", "actor", "source", "target", "categoryLimit", "categoryCount", "eligibleChunks", "nearestPlayerDistance"}
+	return []string{"entityId", "type", "x", "y", "z", "health", "flags", "growthTicks", "reason", "spawnReason", "category", "persistent", "inactiveTicks", "actor", "source", "target", "categoryLimit", "categoryCount", "eligibleChunks", "nearestPlayerDistance", "biome", "skyLight", "blockLight", "localLight", "minecraftTick", "spawningRules"}
 }

@@ -201,10 +201,12 @@ func (s *Server) prepareMobWithFlags(r *Room, p *Peer, typ string, x, y, z float
 	if !validMob(m) {
 		return nil, fmt.Errorf("无效生物状态。")
 	}
+ if reason=="natural" && !s.naturalSpawnPosition(r,typ,int(math.Floor(x)),int(y),int(math.Floor(z))) {return nil,fmt.Errorf("natural_spawn.invalid_position")}
 	if !s.allowed(api.EntitySpawning, r, p, mobLifecycleData(p, m, reason, context)) {
 		return nil, fmt.Errorf("生物生成已被插件阻止。")
 	}
-	return m, nil
+ if reason=="natural" && (!s.mobCapacity(r,len(reserved)+1)||!s.naturalSpawnPosition(r,typ,int(math.Floor(x)),int(y),int(math.Floor(z)))) {return nil,fmt.Errorf("natural_spawn.validation_changed")}
+ return m,nil
 }
 func contextualMobData(m *Mob, reason string, context map[string]any) map[string]any {
 	data := map[string]any{}
@@ -286,64 +288,6 @@ func (s *Server) skyOpen(r *Room, x, y, z int) bool {
 	return true
 }
 
-// A bounded light flood, rather than a global "torch present" switch. Only
-// light sources that could reach the query in <= 14 steps need examining.
-// Solid blocks block propagation; water/leaves consume an extra level.
-func (s *Server) blockLight(r *Room, x, y, z int) int {
-	type cell struct{ x, y, z, l int }
-	queue := []cell{}
-	for key, b := range r.Edits {
-		light := 0
-		switch {
-		case isTorch(b):
-			light = 14
-		case b == 41 || b == 68 || b == 95:
-			light = 15
-		}
-		if light == 0 {
-			continue
-		}
-		bx, by, bz := coords(key)
-		if abs(bx-x)+abs(by-y)+abs(bz-z) < light {
-			queue = append(queue, cell{bx, by, bz, light})
-		}
-	}
-	if len(queue) == 0 {
-		return 0
-	}
-	seen := map[uint64]int{}
-	best := 0
-	for i := 0; i < len(queue); i++ {
-		c := queue[i]
-		key := blockKey(c.x, c.y, c.z)
-		if seen[key] >= c.l {
-			continue
-		}
-		seen[key] = c.l
-		if c.x == x && c.y == y && c.z == z {
-			best = max(best, c.l)
-			continue
-		}
-		for _, d := range [][3]int{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}} {
-			nx, ny, nz := c.x+d[0], c.y+d[1], c.z+d[2]
-			l := c.l - 1
-			if !r.inside(nx, nz) || ny < 0 || ny >= 128 || l <= best || abs(nx-x)+abs(ny-y)+abs(nz-z) >= l {
-				continue
-			}
-			k := s.rules.Kinds[s.block(r, nx, ny, nz)]
-			if k == 1 {
-				continue
-			}
-			if k == 2 || k == 4 || k == 6 {
-				l--
-			}
-			if l > best {
-				queue = append(queue, cell{nx, ny, nz, l})
-			}
-		}
-	}
-	return best
-}
 func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 	spec, ok := mobSpecs[typ]
 	if !ok || spec.Hostile && s.difficulty(r) == "peaceful" {
@@ -356,25 +300,21 @@ func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 	if !s.mobFits(r, typ, float64(x)+.5, float64(y), float64(z)+.5) {
 		return false
 	}
-	if r.dimName() == "nether" {
-		// Our supported Nether ambient mobs belong to fortresses. Do not
-		// populate every netherrack cave with blazes and wither skeletons.
-		bricks := s.rules.byName["Under Bricks"]
-		if bricks == 0 {
-			bricks = 183
-		}
-		return (typ == "blaze" || typ == "wither_skeleton") && floor == bricks && (typ == "blaze" || s.blockLight(r, x, y, z) == 0)
-	}
-	if r.dimName() == "end" {
-		return typ == "enderman" && s.blockLight(r, x, y, z) == 0
-	}
-	if typ == "enderman" {
+	if !s.naturalTypeAllowed(r, typ, x, y, z) {
 		return false
 	}
 	if spec.Hostile {
-		return s.mobSkyLight(r, x, y, z) <= 7 && s.blockLight(r, x, y, z) == 0
+		if typ == "blaze" {
+			return true
+		}
+		l := s.naturalSpawnLight(r, x, y, z)
+		blockLimit := 0
+		if r.dimName() == "nether" {
+			blockLimit = 15
+		}
+		return l.block <= blockLimit && l.local <= l.threshold
 	}
-	return floor == s.rules.byName["Grass Block"] && (s.mobSkyLight(r, x, y, z) >= 9 || s.blockLight(r, x, y, z) >= 9)
+	return floor == s.rules.byName["Grass Block"] && max(s.mobSkyLight(r, x, y, z), s.blockLight(r, x, y, z)) >= 9
 }
 func mobPosition(out []byte, m *Mob) []byte {
 	out = entityPosition(out, &ItemDrop{X: m.X, Y: m.Y, Z: m.Z})
@@ -645,10 +585,6 @@ func (s *Server) mobsTick(r *Room) {
 			continue
 		}
 		target, nearest := s.nearestMobPlayer(r, m.X, m.Y, m.Z)
-		if r.dimName() == "overworld" && m.Type == "enderman" && !m.Persistent {
-			s.removeMob(r, m, "dimension_restriction")
-			continue
-		}
 		if s.despawnMob(r, m, nearest) {
 			continue
 		}
@@ -686,7 +622,7 @@ func (s *Server) mobsTick(r *Room) {
 		s.growMob(r, m)
 		// 亡灵/畏光生物白天日光自燃机制 (Zombie & Skeleton Daylight Burning)
 		isSunSensitive := (m.Type == "zombie" || m.Type == "skeleton")
-		isOverworld := r.dimName() == "overworld" || r.parent == nil
+		isOverworld := r.dimName() == "overworld"
 		inWater := isWater(s.block(r, mx, int(math.Floor(m.Y)), mz)) ||
 			isWater(s.block(r, mx, int(math.Floor(m.Y+0.6)), mz))
 		isRaining := s.raining(r)

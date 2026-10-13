@@ -80,6 +80,7 @@ type Server struct {
 	closeError           error
 	testEventHook        func(*api.Event)
 	economyDB            *EconomyDB
+	shop                 *ShopManager
 }
 
 func New(config Config) (*Server, error) {
@@ -680,6 +681,8 @@ type Message struct {
 	N              int             `json:"n"`
 	Pick           int             `json:"pick"`
 	S              int             `json:"s"`
+	Item           string          `json:"item,omitempty"`
+	Count          int             `json:"count,omitempty"`
 	Blocking       bool            `json:"blocking"`
 	State          bool            `json:"state"`
 	X              int             `json:"x"`

@@ -90,6 +90,7 @@ type BlockData struct {
 
 // roomRuntime is per-room state that is not persisted.
 type roomRuntime struct {
+	spawnLights        *spawnLighting
 	vehicleView        *VehicleState
 	fishing            *fishingRuntime
 	pending            []uint64        // block positions queued for neighbour updates

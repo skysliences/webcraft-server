@@ -181,6 +181,12 @@ const (
 	// 玩家头顶名牌与称号系统事件
 	PlayerNametagRendering = "player.nametag.render"
 	PlayerNametagChanged   = "player.nametag.changed"
+
+	// 商店系统事件
+	ShopBuying  = "shop.buy.before"
+	ShopBought  = "shop.bought"
+	ShopSelling = "shop.sell.before"
+	ShopSold    = "shop.sold"
 )
 
 func extensionEvents() []EventSpec {
@@ -227,6 +233,8 @@ func extensionEvents() []EventSpec {
 		TradeCompleting, TradeCompleted, TradeCancelled,
 		// 玩家名牌与图片称号事件
 		PlayerNametagRendering, PlayerNametagChanged,
+		// 商店系统事件
+		ShopBuying, ShopBought, ShopSelling, ShopSold,
 	}
 	mutable := map[string][]string{
 		TNTPriming:               {"fuseTicks"},
@@ -242,6 +250,8 @@ func extensionEvents() []EventSpec {
 		EconomyBalanceChanging:   {"amount"},
 		EconomyPaying:            {"amount"},
 		PlayerNametagRendering:   {"prefix", "suffix", "displayName", "nameColor", "title", "titleColor", "titleIcon", "titleAnimation"},
+		ShopBuying:               {"count", "price"},
+		ShopSelling:              {"count", "price"},
 	}
 	for _, name := range names {
 		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering || name == PlayerNametagRendering

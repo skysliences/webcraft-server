@@ -419,6 +419,9 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 
 	case "prefix", "suffix", "title", "nametag":
 		return s.handleNametagCommands(p, strings.ToLower(name), parts)
+
+	case "shop":
+		return s.handleShopCommand(p, parts)
 	}
 
 	return false, false
