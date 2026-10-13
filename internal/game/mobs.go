@@ -684,19 +684,40 @@ func (s *Server) mobsTick(r *Room) {
 		oldFlags := m.Flags
 		m.Flags &= mobFlagBaby | mobFlagSheared
 		s.growMob(r, m)
-		if m.Type == "zombie" && !isNight(r.Time) && s.tick%10 == 0 {
+		// 亡灵/畏光生物白天日光自燃机制 (Zombie & Skeleton Daylight Burning)
+		isSunSensitive := (m.Type == "zombie" || m.Type == "skeleton")
+		isOverworld := r.dimName() == "overworld" || r.parent == nil
+		inWater := isWater(s.block(r, mx, int(math.Floor(m.Y)), mz)) ||
+			isWater(s.block(r, mx, int(math.Floor(m.Y+0.6)), mz))
+		isRaining := s.raining(r)
+		skyExposed := s.skyOpen(r, mx, int(math.Floor(m.Y+spec.Height)), mz)
+
+		if inWater || (isRaining && skyExposed) {
+			// 在水中或暴雨露天时浇灭火焰
 			m.burnMS = 0
-			if s.skyOpen(r, mx, int(m.Y+spec.Height), mz) {
-				m.burnMS = 1000
+		} else if isSunSensitive && isOverworld && !isNight(r.Time) && skyExposed {
+			// 白天阳光直射下持续点燃火焰 (赋予 8 秒持续燃烧时间)
+			if m.burnMS < 8000 {
+				m.burnMS = 8000
 			}
 		}
+
 		if m.burnMS > 0 {
-			m.Flags |= 8
+			m.Flags |= 8 // 点燃全身火焰视觉特效 (ENT_FLAG.BURNING)
 			m.burnMS -= 100
-			if m.burnMS == 0 {
-				if s.damageMob(r, nil, m, 1, "sunlight") && r.Mobs[id] == nil {
+			// 每秒 (每 10 个 tick) 造成 1 点日光灼烧伤害
+			if s.tick%10 == 0 {
+				ok := s.damageMob(r, nil, m, 1, "sunlight")
+				if ok && r.Mobs[id] == nil {
 					continue
 				}
+			}
+		}
+		// 0血兜底：生物生命值 <= 0 时立即触发死亡结算，避免残留不死幽灵实体
+		if m.Health <= 0 {
+			s.damageMob(r, nil, m, 1, "sunlight")
+			if r.Mobs[id] == nil {
+				continue
 			}
 		}
 		chase := spec.Hostile && target != nil && r.usesSurvival() && nearest < 20 && math.Abs(target.state.Y-m.Y) < 8 && (m.Type != "spider" || isNight(r.Time))
