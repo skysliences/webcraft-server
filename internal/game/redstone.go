@@ -37,7 +37,7 @@ func (s *Server) powerAtWithConduction(r *Room, x, y, z int, includePoweredBlock
 		if includePoweredBlocks {
 			power = s.emittedPower(r, nx, ny, nz, -d[0], -d[1], -d[2])
 		} else {
-			power = max(s.directPowerSource(r, nx, ny, nz, -d[0], -d[1], -d[2]), getRedstone(r).Wires[blockKey(nx, ny, nz)])
+			power = max(s.directPowerSource(r, nx, ny, nz, -d[0], -d[1], -d[2]), s.wireOutput(r, nx, ny, nz, -d[0], -d[1], -d[2]))
 		}
 		if power > best {
 			best = power

@@ -22,6 +22,7 @@ type RedstoneComponent struct {
 	Countdown   int    `json:"countdown,omitempty"`
 	Timeout     int    `json:"timeout,omitempty"`
 	Locked      bool   `json:"locked,omitempty"`
+	Dot         bool   `json:"dot,omitempty"`
 }
 
 var redstoneItemKinds = map[string]string{"redstone": "wire", "redstone_torch": "torch", "repeater": "repeater", "comparator": "comparator", "piston": "piston", "sticky_piston": "sticky_piston", "stone_pressure_plate": "stone_pressure_plate", "oak_pressure_plate": "oak_pressure_plate", "lever": "lever", "stone_button": "button", "oak_button": "wooden_button"}
@@ -319,9 +320,9 @@ func (s *Server) redstoneSupported(r *Room, k uint64, b int) bool {
 		return true
 	}
 	x, y, z := coords(k)
-	if kind == "torch" {
+	if kind == "torch" || kind == "lever" || kind == "button" || kind == "wooden_button" {
 		face := 1
-		if state := redstoneSnapshot(r, k); state != nil && state.Kind == kind && state.SupportFace >= 1 && state.SupportFace <= 5 {
+		if state := redstoneSnapshot(r, k); state != nil && state.Kind == kind && state.SupportFace >= 0 && state.SupportFace <= 5 {
 			face = state.SupportFace
 		}
 		off := faceOffsets[face]
@@ -358,7 +359,7 @@ func (s *Server) handleRedstoneUse(p *Peer, m Message, expected *api.ItemStack, 
 	if heldKind == "" {
 		heldKind = s.redstoneKind(it.PlacesID)
 	}
-	interactive := kind == "lever" || kind == "button" || kind == "wooden_button" || kind == "repeater" || kind == "comparator"
+	interactive := redstoneInteractive(kind)
 	if heldKind == "" && (!interactive || p.flags&1 != 0) {
 		return false
 	}
@@ -373,6 +374,11 @@ func (s *Server) handleRedstoneUse(p *Peer, m Message, expected *api.ItemStack, 
 			return true
 		}
 		switch kind {
+		case "wire":
+			if s.wireLinks(r, m.X, m.Y, m.Z) != 0 {
+				return true
+			}
+			next.Dot = !next.Dot
 		case "lever":
 			next.Powered = !next.Powered
 		case "button", "wooden_button":
@@ -419,15 +425,16 @@ func (s *Server) handleRedstoneUse(p *Peer, m Message, expected *api.ItemStack, 
 	} else {
 		if heldKind == "torch" || heldKind == "lever" || heldKind == "button" || heldKind == "wooden_button" {
 			support := faceOffsets[face]
-			if face == 0 || !s.supportsTorch(s.block(r, x-support[0], y-support[1], z-support[2])) {
+			if heldKind == "torch" && face == 0 || !s.supportsTorch(s.block(r, x-support[0], y-support[1], z-support[2])) {
 				p.sys("红石组件需要完整方块支撑。")
 				return true
 			}
 		} else {
-			if face != 1 || !s.supportsTorch(s.block(r, x, y-1, z)) {
+			if !s.supportsTorch(s.block(r, x, y-1, z)) {
 				p.sys("这个红石组件需要放在完整方块的顶面。")
 				return true
 			}
+			next.SupportFace = 1
 		}
 		next.Facing = ((int(math.Floor((p.state.Yaw+math.Pi/4)/(math.Pi/2)))+2)%4 + 4) % 4
 		if heldKind == "repeater" {
@@ -497,6 +504,7 @@ func (s *Server) redstoneWirePacket(r *Room, k uint64) map[string]any {
 		out["facing"] = v.Facing
 		out["delay"] = max(1, v.Delay)
 		out["sub"] = v.Subtract
+		out["dot"] = v.Dot
 		out["extended"] = v.Extended
 		out["torchFace"] = v.SupportFace
 	}
@@ -541,6 +549,19 @@ func (s *Server) syncRedstoneFor(p *Peer) {
 
 func (s *Server) tickRedstoneComponents(r *Room) {
 	rs := getRedstone(r)
+	// Reconcile legacy unsupported components as well as live block updates.
+	if r.Ext != nil {
+		for k, data := range r.Ext.Blocks {
+			if data == nil || data.Redstone == nil {
+				continue
+			}
+			x, y, z := coords(k)
+			b := s.block(r, x, y, z)
+			if !s.redstoneSupported(r, k, b) {
+				s.breakUnsupportedMechanic(r, k, b)
+			}
+		}
+	}
 	for k, ticks := range rs.Buttons {
 		if ticks <= 0 {
 			continue

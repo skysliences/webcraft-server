@@ -129,6 +129,13 @@ func init() {
 		s.checkActuators(r, x, y, z)
 	})
 
+	// Block interaction precedes spawn eggs, buckets and mechanic placement.
+	onPlace(-110, func(s *Server, p *Peer, m Message, target int) bool {
+		if p.flags&1 == 0 && redstoneInteractive(s.redstoneKind(target)) {
+			return s.handleRedstoneUse(p, m, nil, false)
+		}
+		return false
+	})
 	onPlace(8, func(s *Server, p *Peer, m Message, target int) bool {
 		return s.handleRedstoneUse(p, m, nil, false)
 	})
@@ -373,13 +380,13 @@ func (s *Server) directPowerSource(r *Room, x, y, z, dx, dy, dz int) int {
 	}
 	// Powered Repeater facing output
 	if rep := rs.Repeaters[k]; rep != nil && rep.Powered {
-		if dx == horizontal4[rep.Facing][0] && dz == horizontal4[rep.Facing][2] {
+		if dy == 0 && dx == horizontal4[rep.Facing][0] && dz == horizontal4[rep.Facing][2] {
 			return 15
 		}
 	}
 	// Comparator output
 	if cmp := rs.Comparators[k]; cmp != nil && cmp.OutputPower > 0 {
-		if dx == horizontal4[cmp.Facing][0] && dz == horizontal4[cmp.Facing][2] {
+		if dy == 0 && dx == horizontal4[cmp.Facing][0] && dz == horizontal4[cmp.Facing][2] {
 			return cmp.OutputPower
 		}
 	}
@@ -430,8 +437,8 @@ func redstoneEmittedPower(s *Server, r *Room, x, y, z, dx, dy, dz int) int {
 	}
 
 	// 2. Redstone Wire
-	if w, ok := rs.Wires[k]; ok && w > 0 {
-		return w
+	if _, ok := rs.Wires[k]; ok {
+		return s.wireOutput(r, x, y, z, dx, dy, dz)
 	}
 
 	// 3. Powered solid cube (can power neighbouring actuators like pistons)

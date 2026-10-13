@@ -146,7 +146,12 @@ func TestRedstoneTorchAttachmentStillInverts(t *testing.T) {
 			if source == 108 {
 				storeRedstoneComponent(r, blockKey(ix, iy, iz), &RedstoneComponent{Kind: "wire", Power: 15})
 			}
-			if s.directPowerSource(r, 10, 60, 10, 0, 1, 0) != 0 {
+			want := 0
+			// Dust does not power the block above it, unlike a redstone block.
+			if source == 108 && face == 1 {
+				want = 15
+			}
+			if s.directPowerSource(r, 10, 60, 10, 0, 1, 0) != want {
 				t.Fatal("powered attachment failed to switch torch off", face, source)
 			}
 			r.Edits[blockKey(ix, iy, iz)] = 0

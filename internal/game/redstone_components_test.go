@@ -251,7 +251,7 @@ func redstonePluginApp(t *testing.T) *Server {
 	}
 	manifest := `{"id":"redstone-test","name":"redstone-test","version":"1","apiVersion":1,"entry":"plugin","args":["-test.run=^TestRedstoneComponentPluginProcess$","redstone-components-fixture"]}`
 	os.WriteFile(filepath.Join(entry, "plugin.json"), []byte(manifest), 0600)
-	s, err := New(Config{DataDir: t.TempDir(), EngineFile: "../../../public/engine.wasm", PluginDir: root, PluginTimeout: time.Second})
+	s, err := New(Config{DataDir: t.TempDir(), EngineFile: findTestEngineFile(), PluginDir: root, PluginTimeout: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

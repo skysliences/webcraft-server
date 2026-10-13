@@ -89,8 +89,12 @@ func (s *Server) prepareTorchChanges(r *Room, p *Peer, key uint64, b, reserved i
 		}
 		changes = append(changes, change)
 	}
+	extra, err := s.prepareMechanicSupportChanges(r, p, key, b, reserved+len(changes))
+	if err != nil {
+		return nil, err
+	}
 	if !r.usesSurvival() {
-		return changes, nil
+		return append(changes, extra...), nil
 	}
 	if len(r.Drops)+reserved+len(changes) > maxWorldDrops {
 		return nil, fmt.Errorf("世界掉落物过多，请先拾取附近的物品。")
@@ -106,10 +110,6 @@ func (s *Server) prepareTorchChanges(r *Room, p *Peer, key uint64, b, reserved i
 			return nil, err
 		}
 		changes[i].drops = drops
-	}
-	extra, err := s.prepareMechanicSupportChanges(r, p, key, b, reserved+len(changes))
-	if err != nil {
-		return nil, err
 	}
 	changes = append(changes, extra...)
 	return changes, nil

@@ -367,7 +367,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 		placed := item.PlacesID
 		if placed == torchBlock {
 			placed = torchForFace(m.F)
-			if s.rules.Kinds[target] == 5 && !isTorch(target) && name != "Fire" {
+			if s.rules.Kinds[target] == 5 && !isTorch(target) && s.redstoneKind(target) == "" && name != "Fire" {
 				x, y, z = m.X, m.Y, m.Z
 				placed = torchBlock
 			}
@@ -380,7 +380,7 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		old := s.block(r, x, y, z)
-		if old != 0 && !isFluid(old) && !(isTorch(placed) && s.rules.Kinds[old] == 5 && !isTorch(old) && baseName(s.rules.Names[old]) != "Fire") {
+		if old != 0 && !isFluid(old) && !(isTorch(placed) && s.rules.Kinds[old] == 5 && !isTorch(old) && s.redstoneKind(old) == "" && baseName(s.rules.Names[old]) != "Fire") {
 			return
 		}
 		if isTorch(placed) && isFluid(old) {

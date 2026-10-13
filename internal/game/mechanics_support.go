@@ -11,7 +11,7 @@ func (s *Server) mechanicSupportChildren(r *Room, key uint64, b int) [][4]int {
 	}
 	x, y, z := coords(key)
 	var children [][4]int
-	for face := 1; face <= 5; face++ {
+	for face := 0; face <= 5; face++ {
 		off := faceOffsets[face]
 		cx, cy, cz := x+off[0], y+off[1], z+off[2]
 		if !r.inside(cx, cz) || cy < 1 || cy >= 128 {
@@ -20,6 +20,17 @@ func (s *Server) mechanicSupportChildren(r *Room, key uint64, b int) [][4]int {
 		id := s.block(r, cx, cy, cz)
 		child := blockKey(cx, cy, cz)
 		supported := face == 1 && (isRailBlock(id) || id == blkDaylightDetector)
+		kind := s.redstoneKind(id)
+		if kind == "wire" || kind == "repeater" || kind == "comparator" || kind == "stone_pressure_plate" || kind == "oak_pressure_plate" {
+			supported = face == 1
+		}
+		if kind == "lever" || kind == "button" || kind == "wooden_button" {
+			support := 1
+			if state := redstoneSnapshot(r, child); state != nil {
+				support = state.SupportFace
+			}
+			supported = support == face
+		}
 		if id == blkSign {
 			v := mechanicSnapshot(r, child)
 			support := 1
@@ -46,6 +57,12 @@ func (s *Server) prepareMechanicSupportChanges(r *Room, p *Peer, key uint64, b, 
 	for _, at := range s.mechanicSupportChildren(r, key, b) {
 		k := blockKey(at[0], at[1], at[2])
 		data := s.mechanicBlockChangeData(r, p, k, 0, "mechanic_support_lost")
+		if component := s.redstoneBlockChangeData(r, p, k, 0, "redstone_support_lost"); component != nil {
+			data = component
+		}
+		if _, ok := data["componentAfter"]; ok && !s.allowed(api.RedstoneComponentChanging, r, p, data) {
+			return nil, fmt.Errorf("插件阻止了红石元件失去支撑，操作未提交。")
+		}
 		if !s.allowed(api.BlockPhysicsChanging, r, p, data) || !s.allowed(api.BlockBreaking, r, p, data) || !s.mechanicBlockBefore(r, p, data) {
 			return nil, fmt.Errorf("插件阻止了方块失去支撑，操作未提交。")
 		}
