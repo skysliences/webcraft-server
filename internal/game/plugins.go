@@ -684,7 +684,7 @@ func (s *Server) executeCommand(p *Peer, msg string) bool {
 	case "help":
 		help := "命令：/help、/spawn、/plugins、/time query、/seed、/worldinfo"
 		if s.canGameCommand(p, "server.gamemode") {
-			help += "、/time set day|night、/summon cow|pig|sheep|chicken|zombie|spider、/gamemode、/difficulty、/gamerule、/weather、/tp、/give、/kill、/xp、/effect、/spawnpoint"
+			help += "、/time set day|night、/summon cow|pig|sheep|chicken|zombie|spider、/gamemode、/difficulty、/gamerule、/weather、/tp、/give、/kill、/xp、/effect、/setspawn、/spawnpoint"
 		}
 		for _, status := range s.plugins.Status() {
 			if status.State == "loaded" {
@@ -703,7 +703,7 @@ func (s *Server) executeCommand(p *Peer, msg string) bool {
 		}
 		p.sys(limitText("插件："+strings.Join(parts, "，"), 240))
 	case "spawn":
-		sp := s.engine.spawn(p.room)
+		sp := s.spawnPoint(p.room)
 		success = s.teleport(p, float64(sp[0])+0.5, float64(sp[1]), float64(sp[2])+0.5, "command")
 	case "time":
 		if len(parts) == 2 && parts[1] == "query" {

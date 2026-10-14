@@ -1013,8 +1013,12 @@ func (s *Server) hello(p *Peer, r *Room, m Message) {
 		}
 	}
 	if state == nil {
-		sp := s.engine.spawn(r)
-		state = &Player{X: float64(sp[0]) + 0.5, Y: float64(sp[1]), Z: float64(sp[2]) + 0.5, Health: 20, Food: 20, Saturation: 5, Ext: &PlayerExt{GameMode: s.defaultGameMode(r)}}
+		sp := s.spawnPoint(r)
+		var yaw, pitch float64
+		if ext := r.root().Ext; ext != nil && ext.SpawnSet {
+			yaw, pitch = ext.SpawnYaw, ext.SpawnPitch
+		}
+		state = &Player{X: float64(sp[0]) + 0.5, Y: float64(sp[1]), Z: float64(sp[2]) + 0.5, Yaw: yaw, Pitch: pitch, Health: 20, Food: 20, Saturation: 5, Ext: &PlayerExt{GameMode: s.defaultGameMode(r)}}
 		r.Players[sid] = state
 	}
 	if state.Ext != nil && state.Ext.Dim != "" && r.usesSurvival() {

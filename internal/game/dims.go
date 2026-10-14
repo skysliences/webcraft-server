@@ -430,7 +430,7 @@ func (s *Server) returnFromEnd(p *Peer) {
 	})
 	root := p.room.root()
 	e := p.ext()
-	sp := s.engine.spawn(root)
+	sp := s.spawnPoint(root)
 	pos := [3]float64{float64(sp[0]) + .5, float64(sp[1]), float64(sp[2]) + .5}
 	if e.SpawnSet && s.nameOf(s.block(root, e.SpawnX, e.SpawnY, e.SpawnZ)) == "Bed" {
 		if spot, ok := s.bedExit(root, e.SpawnX, e.SpawnY, e.SpawnZ); ok {

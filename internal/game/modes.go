@@ -139,10 +139,66 @@ func (s *Server) joinedExt(p *Peer) {
 }
 
 func (s *Server) spawnPoint(r *Room) [3]int {
-	if r.dimName() == "end" {
+	if r != nil && r.dimName() == "end" {
 		return endSpawn(r)
 	}
+	if r != nil {
+		root := r.root()
+		if ext := root.Ext; ext != nil && ext.SpawnSet && root.inside(ext.SpawnX, ext.SpawnZ) && ext.SpawnY >= 1 && ext.SpawnY < 128 {
+			return [3]int{ext.SpawnX, ext.SpawnY, ext.SpawnZ}
+		}
+	}
 	return s.engine.spawn(r)
+}
+
+func (s *Server) setWorldSpawn(r *Room, p *Peer, x, y, z int, yaw, pitch float64, reason string) (bool, [3]int) {
+	if r == nil {
+		return false, [3]int{}
+	}
+	root := r.root()
+	if !root.inside(x, z) || y < 1 || y >= 128 {
+		return false, [3]int{}
+	}
+	prev := s.spawnPoint(root)
+	data := map[string]any{
+		"x":         x,
+		"y":         y,
+		"z":         z,
+		"yaw":       yaw,
+		"pitch":     pitch,
+		"previousX": prev[0],
+		"previousY": prev[1],
+		"previousZ": prev[2],
+		"reason":    reason,
+	}
+	e := s.emit(api.WorldSpawnChanging, root, p, data)
+	if e.Cancelled {
+		if p != nil && e.Reason != "" {
+			p.sys(limitText(e.Reason, 240))
+		}
+		return false, prev
+	}
+	nx := int(math.Floor(e.Number("x")))
+	ny := int(math.Floor(e.Number("y")))
+	nz := int(math.Floor(e.Number("z")))
+	nyaw := e.Number("yaw")
+	npitch := e.Number("pitch")
+	if !root.inside(nx, nz) || ny < 1 || ny >= 128 {
+		return false, prev
+	}
+	ext := root.ext()
+	ext.SpawnSet = true
+	ext.SpawnX = nx
+	ext.SpawnY = ny
+	ext.SpawnZ = nz
+	ext.SpawnYaw = nyaw
+	ext.SpawnPitch = npitch
+	root.Dirty = true
+	_ = s.saveRoom(root)
+
+	data["x"], data["y"], data["z"], data["yaw"], data["pitch"] = nx, ny, nz, nyaw, npitch
+	s.emit(api.WorldSpawnChanged, root, p, data)
+	return true, [3]int{nx, ny, nz}
 }
 
 // healthExtra adds spectator/fire/effect/absorption fields to an hp message.
@@ -264,7 +320,7 @@ func (s *Server) respawnPlayer(p *Peer) bool {
 	e := p.ext()
 	target := r
 	var pos [3]float64
-	sp := s.engine.spawn(r)
+	sp := s.spawnPoint(r)
 	pos = [3]float64{float64(sp[0]) + .5, float64(sp[1]), float64(sp[2]) + .5}
 	if e.SpawnSet {
 		bx, by, bz := e.SpawnX, e.SpawnY, e.SpawnZ
@@ -277,9 +333,18 @@ func (s *Server) respawnPlayer(p *Peer) bool {
 			p.sys("你的床已丢失或被阻挡，已回到世界出生点。")
 		}
 	}
-	if !s.moveToDimension(p, target, pos[0], pos[1], pos[2], true) {
-		return false
+	if s.residence != nil {
+		rx, ry, rz := int(math.Floor(pos[0])), int(math.Floor(pos[1])), int(math.Floor(pos[2]))
+		res := s.residence.FindAt(target.ID, rx, ry, rz)
+		if res == nil {
+			res = s.residence.FindAt(target.ID, rx, ry+1, rz)
+		}
+		if res != nil && !s.residence.HasPermission(res, p, "enter") {
+			pos[0], pos[1], pos[2] = s.residence.FindSafeOutsidePos(target, res, pos[0], pos[1], pos[2])
+		}
 	}
+	oldDead, oldHealth, oldFood, oldSat, oldExh, oldAir := st.Dead, st.Health, st.Food, st.Saturation, st.Exhaustion, p.air
+	oldGM := e.GameMode
 	st.Dead = false
 	st.Health = s.maxHealth(p)
 	st.Food = 20
@@ -289,7 +354,11 @@ func (s *Server) respawnPlayer(p *Peer) bool {
 	if r.hardcore() {
 		e.GameMode = "spectator"
 	}
-	p.json(map[string]any{"t": "place", "st": st, "sv": s.peerSurvivalInfo(p)})
+	if !s.moveToDimension(p, target, pos[0], pos[1], pos[2], true) {
+		st.Dead, st.Health, st.Food, st.Saturation, st.Exhaustion, p.air = oldDead, oldHealth, oldFood, oldSat, oldExh, oldAir
+		e.GameMode = oldGM
+		return false
+	}
 	s.health(p)
 	return true
 }

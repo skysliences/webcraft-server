@@ -68,8 +68,14 @@ type RoomExt struct {
 	// Per-block data: piston stickiness, hopper facing, redstone power...
 	Blocks map[uint64]*BlockData `json:"blocks,omitempty"`
 	// Scheduled ticks (crop growth handled by random ticks instead).
-	EndPortalLit    bool `json:"endLit,omitempty"`
-	RandomTickSpeed *int `json:"randomTickSpeed,omitempty"`
+	EndPortalLit    bool    `json:"endLit,omitempty"`
+	RandomTickSpeed *int    `json:"randomTickSpeed,omitempty"`
+	SpawnSet        bool    `json:"spawnSet,omitempty"`
+	SpawnX          int     `json:"spawnX,omitempty"`
+	SpawnY          int     `json:"spawnY,omitempty"`
+	SpawnZ          int     `json:"spawnZ,omitempty"`
+	SpawnYaw        float64 `json:"spawnYaw,omitempty"`
+	SpawnPitch      float64 `json:"spawnPitch,omitempty"`
 }
 
 // BlockData is extra state stored for a block position.

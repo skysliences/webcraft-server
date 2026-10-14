@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) survivalInfo(r *Room) map[string]any {
-	info := map[string]any{"seed": seed(r.seedID()), "w": r.width(), "gen": r.gen(), "dim": r.dimName(), "spawn": s.engine.spawn(r), "time": r.root().Time, "grace": 0, "hardcore": r.hardcore(), "digAck": true, "placeAck": true, "placeInventoryAck": true}
+	info := map[string]any{"seed": seed(r.seedID()), "w": r.width(), "gen": r.gen(), "dim": r.dimName(), "spawn": s.spawnPoint(r), "time": r.root().Time, "grace": 0, "hardcore": r.hardcore(), "digAck": true, "placeAck": true, "placeInventoryAck": true}
 	if r.dimName() == "end" {
 		info["spawn"] = endSpawn(r)
 	}
@@ -129,6 +129,11 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 	}
 	if m.T == "respawn" {
 		if !st.Dead {
+			if st.Health <= 0 {
+				st.Health = s.maxHealth(p)
+			}
+			s.health(p)
+			p.json(map[string]any{"t": "prespawn", "id": p.id})
 			return
 		}
 		if !s.allowed(api.PlayerRespawning, r, p, nil) {

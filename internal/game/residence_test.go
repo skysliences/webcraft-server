@@ -238,3 +238,87 @@ func TestResidenceProtectionAndPermissions(t *testing.T) {
 		t.Fatal("non-admin should not be able to manage a public residence even if originally created by them")
 	}
 }
+
+func TestSetSpawnCommandAndNewPlayerSpawn(t *testing.T) {
+	s, _ := testApp(t, t.TempDir())
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r := newRoom("testspawnworld123", "SpawnWorld", "survival", 0)
+	s.rooms[r.ID] = r
+
+	normalPlayer := &Peer{
+		room:    r,
+		id:      1,
+		sid:     "user_sid_1111111111111111111111",
+		name:    "User1",
+		builder: "user1_uid",
+		send:    make(chan packet, 256),
+		state: &Player{
+			X:      120.5,
+			Y:      68,
+			Z:      130.5,
+			Health: 20,
+			Food:   20,
+			Inv:    &Inventory{Slots: make(Stacks, 46)},
+		},
+		known: map[int]bool{},
+	}
+	adminPlayer := &Peer{
+		room:    r,
+		id:      2,
+		sid:     "admin_sid_2222222222222222222222",
+		name:    "AdminUser",
+		builder: "admin_uid",
+		owner:   true,
+		send:    make(chan packet, 256),
+		state: &Player{
+			X:      240.5,
+			Y:      70,
+			Z:      250.5,
+			Yaw:    1.25,
+			Pitch:  -0.15,
+			Health: 20,
+			Food:   20,
+			Inv:    &Inventory{Slots: make(Stacks, 46)},
+		},
+		known: map[int]bool{},
+	}
+	r.Peers[normalPlayer] = true
+	r.Peers[adminPlayer] = true
+
+	// 1. Non-admin cannot execute /setspawn
+	if s.executeCommand(normalPlayer, "/setspawn") {
+		t.Fatal("non-admin should not be able to run /setspawn")
+	}
+
+	// 2. Admin executes /setspawn at current position (240, 70, 250)
+	if !s.executeCommand(adminPlayer, "/setspawn") {
+		t.Fatal("admin /setspawn failed")
+	}
+	sp := s.spawnPoint(r)
+	if sp != [3]int{240, 70, 250} {
+		t.Fatalf("expected spawnPoint [240, 70, 250], got %v", sp)
+	}
+	if r.Ext == nil || !r.Ext.SpawnSet || r.Ext.SpawnYaw != 1.25 || r.Ext.SpawnPitch != -0.15 {
+		t.Fatalf("expected custom spawn yaw/pitch persisted in RoomExt, got %+v", r.Ext)
+	}
+
+	// 3. Normal player runs /spawn -> teleports to (240.5, 70, 250.5)
+	if !s.executeCommand(normalPlayer, "/spawn") {
+		t.Fatal("/spawn command failed")
+	}
+	if normalPlayer.state.X != 240.5 || normalPlayer.state.Y != 70 || normalPlayer.state.Z != 250.5 {
+		t.Fatalf("expected /spawn to teleport player to (240.5, 70, 250.5), got (%v, %v, %v)", normalPlayer.state.X, normalPlayer.state.Y, normalPlayer.state.Z)
+	}
+
+	// 4. Admin executes /setspawn with explicit coordinates: /setspawn 310 72 320
+	if !s.executeCommand(adminPlayer, "/setspawn 310 72 320") {
+		t.Fatal("admin /setspawn 310 72 320 failed")
+	}
+	if got := s.spawnPoint(r); got != [3]int{310, 72, 320} {
+		t.Fatalf("expected spawnPoint [310, 72, 320], got %v", got)
+	}
+}
+

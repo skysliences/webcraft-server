@@ -32,6 +32,7 @@ var commandCatalog = []commandDef{
 	{Name: "effect", Usage: "/effect <give|clear> [玩家] [效果] [秒数] [等级]", Description: "赋予或清除药水状态效果", NeedOP: true, Survival: true},
 	{Name: "summon", Usage: "/summon <生物类型> [x y z]", Description: "在指定位置召唤生物实体", NeedOP: true, Survival: true},
 	{Name: "spawn", Usage: "/spawn", Description: "传送回到当前世界出生点", NeedOP: false},
+	{Name: "setspawn", Aliases: []string{"setworldspawn"}, Usage: "/setspawn [x y z]", Description: "设置新玩家进入服务器的世界出生点", NeedOP: true},
 	{Name: "say", Usage: "/say <消息内容>", Description: "以管理员/服务器广播身份向全服发送公告", NeedOP: true},
 	{Name: "op", Usage: "/op <玩家名字或账号ID>", Description: "将玩家提升为管理员 (OP)", NeedOP: true},
 	{Name: "deop", Usage: "/deop <玩家名字或账号ID>", Description: "撤销玩家的管理员权限", NeedOP: true},
@@ -324,6 +325,41 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 			return true, false
 		}
 		p.sys("已传送回世界出生点。")
+		return true, true
+
+	case "setspawn", "setworldspawn":
+		if !needOwner() {
+			return true, false
+		}
+		if len(args) == 0 && r.dimName() != "overworld" {
+			p.sys("请在主世界（Overworld）中设置服务器新玩家出生点，或指定主世界坐标：/setspawn <x> <y> <z>。")
+			return true, false
+		}
+		bx, by, bz := int(math.Floor(p.state.X)), int(math.Floor(p.state.Y)), int(math.Floor(p.state.Z))
+		yaw, pitch := p.state.Yaw, p.state.Pitch
+		if len(args) == 3 {
+			fx, ok1 := parseCoord(args[0], p.state.X)
+			fy, ok2 := parseCoord(args[1], p.state.Y)
+			fz, ok3 := parseCoord(args[2], p.state.Z)
+			if !ok1 || !ok2 || !ok3 {
+				p.sys("坐标格式错误。用法：/setspawn [x y z]")
+				return true, false
+			}
+			bx, by, bz = int(math.Floor(fx)), int(math.Floor(fy)), int(math.Floor(fz))
+		} else if len(args) != 0 {
+			p.sys("用法：/setspawn [x y z]")
+			return true, false
+		}
+		root := r.root()
+		if !root.inside(bx, bz) || by < 1 || by >= 128 {
+			p.sys("出生点坐标超出世界有效范围（Y 需在 1..127 之间）。")
+			return true, false
+		}
+		ok, sp := s.setWorldSpawn(root, p, bx, by, bz, yaw, pitch, "command")
+		if !ok {
+			return true, false
+		}
+		p.sys(fmt.Sprintf("已将服务器新玩家出生点设置为 [%d, %d, %d]。", sp[0], sp[1], sp[2]))
 		return true, true
 
 	case "op", "deop":

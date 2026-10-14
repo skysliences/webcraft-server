@@ -195,6 +195,10 @@ const (
 	ResidenceRemoved      = "residence.removed"
 	ResidenceFlagChanging = "residence.flag.before"
 	ResidenceFlagChanged  = "residence.flag.changed"
+
+	// 世界出生点设置事件
+	WorldSpawnChanging = "world.spawn.before"
+	WorldSpawnChanged  = "world.spawn.changed"
 )
 
 func extensionEvents() []EventSpec {
@@ -246,6 +250,8 @@ func extensionEvents() []EventSpec {
 		// 领地保护系统事件
 		ResidenceCreating, ResidenceCreated, ResidenceRemoving, ResidenceRemoved,
 		ResidenceFlagChanging, ResidenceFlagChanged,
+		// 世界出生点设置事件
+		WorldSpawnChanging, WorldSpawnChanged,
 	}
 	mutable := map[string][]string{
 		TNTPriming:               {"fuseTicks"},
@@ -265,6 +271,7 @@ func extensionEvents() []EventSpec {
 		ShopSelling:              {"count", "price"},
 		ResidenceCreating:        {"cost", "isPublic"},
 		ResidenceFlagChanging:    {"value"},
+		WorldSpawnChanging:       {"x", "y", "z", "yaw", "pitch"},
 	}
 	for _, name := range names {
 		before := (len(name) > 7 && name[len(name)-7:] == ".before") || name == ScoreboardRendering || name == PlayerNametagRendering

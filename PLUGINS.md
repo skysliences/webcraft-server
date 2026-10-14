@@ -70,29 +70,18 @@ npm run plugins:build
 npm start
 ```
 
-进入任意世界，在聊天框输入 `/plugins`、`/hello 开发者`、`/hi` 或 `/where`。生存世界房主可用 `/starter` 领取 3 个面包。`/help` 自动列出当前身份可用的插件命令。
-
-示例源码在 `backend/examples/welcome/main.go`，配置在 `plugins/welcome/plugin.json`：
-
-| 配置 | 行为 |
-| --- | --- |
-| `greeting` | 加入世界后的欢迎消息 |
-| `blockedWord` | 聊天内容包含此文本时取消发送；空字符串禁用。默认 `[blocked]` |
-| `chatPrefix` | 在聊天内容前加文本；默认空字符串 |
-| `centerProtectionRadius` | 以 X=512、Z=512 为中心的保护半径；保护区内只有房主能采集/放置。默认 0 禁用 |
-
-插件会把累计加入次数保存到 `data/plugins/welcome/visits.json`。它同时演示事件监听、优先级、配置、独立数据目录、命令别名、权限和每 100 tick 的定时回调。
+进入任意世界，在聊天框输入 `/plugins` 查看已加载插件。`/help` 自动列出当前身份可用的插件命令。
 
 ## 插件目录与生命周期
 
 ```text
 plugins/
-  welcome/
+  myplugin/
     plugin.json
-    welcome          # Windows 为 welcome.exe
+    myplugin         # Windows 为 myplugin.exe
 data/
   plugins/
-    welcome/         # 服务端为插件创建的数据目录
+    myplugin/        # 服务端为插件创建的数据目录
 ```
 
 ```json
@@ -231,6 +220,7 @@ API v1 是本项目的插件协议，不加载 Bukkit/Spigot 的 Java JAR 或 Go
 | 装备属性 | — | `player.attributes.changed` | 已提交装备变化的聚合属性 `before`, `after` |
 | 死亡 | `player.death.before` | `player.dead` | **`message`**；前事件 `amount` |
 | 重生 | `player.respawn.before` | `player.respawned` | 玩家快照 |
+| 世界出生点 | `world.spawn.before` | `world.spawn.changed` | **`x`**, **`y`**, **`z`**, **`yaw`**, **`pitch`**, `previousX`, `previousY`, `previousZ`, `reason`（如 `/setspawn` 设置新玩家进服出生点） |
 | 世界时间 | `world.time.before` | `world.time.changed` | `time`, `reason`；手动修改带 `previous`；自动推进每秒观察通知，不发可取消前事件 |
 | 生物生成 | `entity.spawn.before` | `entity.spawned` | `entityId`, `type`, `x`, `y`, `z`, `health`, `reason` |
 | 生物清除 | `entity.despawn.before` | `entity.despawned` | 同上，`reason=distance` |
