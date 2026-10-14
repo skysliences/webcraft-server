@@ -658,6 +658,7 @@ func (m *ResidenceManager) SendResidenceWindow(p *Peer) {
 		"t":             "residence_window",
 		"mySid":         p.sid,
 		"myName":        p.name,
+		"worldId":       worldID,
 		"balance":       bal,
 		"pricePerBlock": m.pricePerBlock,
 		"refundRate":    m.refundRate,
