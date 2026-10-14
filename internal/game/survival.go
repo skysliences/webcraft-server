@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"math"
 	api "mcraft/backend/pkg/plugin"
@@ -196,6 +197,14 @@ func (s *Server) survivalMessage(p *Peer, m Message) {
 			return
 		}
 		if m.S == 0 {
+			if !s.isCreative(p) && s.residence != nil {
+				if res := s.residence.FindAt(r.ID, m.X, m.Y, m.Z); res != nil && !s.residence.HasPermission(res, p, "build") {
+					p.mining = nil
+					p.sys(fmt.Sprintf("§c[领地保护] 你没有领地【%s】（主人: %s）的建筑与破坏权限！", res.Name, res.OwnerName))
+					s.broadcastChunk(r, blockKey(m.X, m.Y, m.Z), b)
+					return
+				}
+			}
 			p.mining = &digState{X: m.X, Y: m.Y, Z: m.Z, Block: b, Held: held, At: time.Now()}
 			return
 		}

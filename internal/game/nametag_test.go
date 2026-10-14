@@ -177,3 +177,28 @@ func TestNametagPluginAction(t *testing.T) {
 		t.Fatalf("plugin set_nametag action did not apply correctly: %+v", info)
 	}
 }
+
+func TestChatWithNametagPrefixSuffix(t *testing.T) {
+	tempDir := t.TempDir()
+	s, _ := testApp(t, tempDir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, p := createAdvancedTestWorld(s)
+	s.rooms[r.ID] = r
+	p.name = "Chatter"
+	p.sid = "chatter_sid"
+
+	// 1. 设置前缀与后缀
+	info := &NametagInfo{
+		Prefix: "§6[公会长]§r ",
+		Suffix: " §e★VIP",
+	}
+	s.setPlayerNametag(p, info, false)
+
+	// 2. 验证 renderPlayerNametag 获取正确
+	rendered := s.renderPlayerNametag(p)
+	if rendered.Prefix != "§6[公会长]§r " || rendered.Suffix != " §e★VIP" {
+		t.Fatalf("expected prefix/suffix preserved, got %+v", rendered)
+	}
+}

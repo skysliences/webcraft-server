@@ -51,9 +51,9 @@ func TestShopBuyItem(t *testing.T) {
 	// 尝试购买钻石 (单价 100) -> 应该因为金币不足而失败
 	s.buyShopItem(p, "diamond", 1)
 
-	// 验证背包中没有钻石 (264)
+	// 验证背包中没有钻石 (318)
 	for _, stk := range p.state.Inv.Slots[:36] {
-		if stk != nil && stk.ID == 264 {
+		if stk != nil && stk.ID == 318 {
 			t.Fatal("金币不足时不应该获得钻石")
 		}
 	}
@@ -76,7 +76,7 @@ func TestShopBuyItem(t *testing.T) {
 	// 验证背包中有 2 个钻石
 	diamondCount := 0
 	for _, stk := range p.state.Inv.Slots[:36] {
-		if stk != nil && stk.ID == 264 {
+		if stk != nil && stk.ID == 318 {
 			diamondCount += stk.Count
 		}
 	}
@@ -107,8 +107,8 @@ func TestShopSellItem(t *testing.T) {
 		t.Fatalf("背包无物品时余额不应改变，实际 %.2f", bal)
 	}
 
-	// 2. 放入 10 块煤炭 (ID 263, 默认回收单价 2.0)
-	p.state.Inv.Slots[0] = stack(263, 10, 0)
+	// 2. 放入 10 块煤炭 (ID 311, 默认回收单价 2.0)
+	p.state.Inv.Slots[0] = stack(311, 10, 0)
 
 	// 出售 4 块煤炭 (回收收益 4 * 2.0 = 8.0)
 	s.sellShopItem(p, "coal", 4)
@@ -140,9 +140,9 @@ func TestShopSellAllAndHand(t *testing.T) {
 	}
 	_, _ = s.economyDB.SetBalance(accID, p.name, 0.0, "test")
 
-	// 放入 2 个钻石 (ID 264, 回收价 50.0/个 -> 100.0) 和 10 个铁锭 (ID 265, 回收价 5.0/个 -> 50.0)
-	p.state.Inv.Slots[0] = stack(264, 2, 0)
-	p.state.Inv.Slots[1] = stack(265, 10, 0)
+	// 放入 2 个钻石 (ID 318, 回收价 50.0/个 -> 100.0) 和 10 个铁锭 (ID 315, 回收价 5.0/个 -> 50.0)
+	p.state.Inv.Slots[0] = stack(318, 2, 0)
+	p.state.Inv.Slots[1] = stack(315, 10, 0)
 	p.state.Inv.Selected = 0
 
 	// 1. 测试 /shop sell hand (手持钻石出售 1 个 -> 50.0)

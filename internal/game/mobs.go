@@ -304,6 +304,11 @@ func (s *Server) canNaturalSpawn(r *Room, typ string, x, y, z int) bool {
 	if !ok || spec.Hostile && s.difficulty(r) == "peaceful" {
 		return false
 	}
+	if spec.Hostile && s.residence != nil {
+		if res := s.residence.FindAt(r.ID, x, y, z); res != nil && !res.Flags["monsters"] {
+			return false
+		}
+	}
 	floor := s.block(r, x, y-1, z)
 	if s.kind(floor) != 1 || s.nameOf(floor) == "Bedrock" || s.nameOf(floor) == "Glass" || isLava(floor) {
 		return false
@@ -583,6 +588,11 @@ func (s *Server) walkMob(r *Room, m *Mob, dx, dz float64) bool {
 	bx, bz := int(math.Floor(x)), int(math.Floor(z))
 	base := int(math.Round(m.Y))
 	for _, y := range []int{base, base + 1, base - 1} {
+		if mobSpecs[m.Type].Hostile && s.residence != nil {
+			if res := s.residence.FindAt(r.ID, bx, y, bz); res != nil && !res.Flags["monsters"] {
+				continue
+			}
+		}
 		stepBlock := s.block(r, bx, y-1, bz)
 		if y > base && s.rules.Kinds[stepBlock] == 2 {
 			continue // 禁止把树叶当成台阶爬到树顶悬空
@@ -609,6 +619,13 @@ func (s *Server) mobsTick(r *Room) {
 			continue
 		}
 		spec := mobSpecs[m.Type]
+		// 领地防怪检查：若该领地禁止刷怪，自动移除进入领地的敌对怪物（Boss除外）
+		if spec.Hostile && m.Type != "ender_dragon" && m.Type != "wither" && m.Type != "end_crystal" && s.residence != nil {
+			if res := s.residence.FindAt(r.ID, int(math.Floor(m.X)), int(math.Floor(m.Y)), int(math.Floor(m.Z))); res != nil && !res.Flags["monsters"] {
+				s.removeMob(r, m, "residence_protection")
+				continue
+			}
+		}
 		// A removed floor cannot leave an animal suspended in the air.
 		// 飞行生物、Boss 和固定实体免除地面坠落检测
 		isAirborneOrBoss := m.Type == "ender_dragon" || m.Type == "end_crystal" || m.Type == "wither" || m.Type == "blaze" || m.Type == "shulker"

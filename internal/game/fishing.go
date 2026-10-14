@@ -264,8 +264,11 @@ func (s *Server) tickFishing(r *Room) {
 		b.age++
 		bx, by, bz := int(math.Floor(b.X)), int(math.Floor(b.Y)), int(math.Floor(b.Z))
 		if isWater(s.block(r, bx, by, bz)) {
+			for by+1 < 128 && isWater(s.block(r, bx, by+1, bz)) {
+				by++
+			}
 			b.InWater = true
-			b.Y = float64(by) + .8
+			b.Y = float64(by) + .875
 			b.VY = 0
 			b.VX *= .8
 			b.VZ *= .8
@@ -305,6 +308,9 @@ func (s *Server) tickFishing(r *Room) {
 					break
 				}
 				if s.mobSolid(r, int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z))) {
+					if b.VY < 0 && !s.mobSolid(r, int(math.Floor(b.X)), int(math.Floor(y))+1, int(math.Floor(b.Z))) {
+						b.Y = math.Floor(y) + 1.02
+					}
 					b.VX, b.VY, b.VZ = 0, 0, 0
 					break
 				}

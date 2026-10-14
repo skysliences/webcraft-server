@@ -3,18 +3,46 @@
   "currencySymbol": "$",
   "discountRate": 1.0,
   "categories": [
-    { "id": "all", "name": "全部商品", "icon": "chest" },
-    { "id": "ores", "name": "💎 矿石宝石", "icon": "diamond" },
-    { "id": "blocks", "name": "🧱 建筑材料", "icon": "stone" },
-    { "id": "farming", "name": "🥩 农牧食物", "icon": "cooked_beef" },
-    { "id": "tools", "name": "⚔️ 工具武器", "icon": "iron_sword" },
-    { "id": "redstone", "name": "⚙️ 红石机械", "icon": "redstone" },
-    { "id": "misc", "name": "📦 杂项道具", "icon": "torch" }
+    {
+      "id": "all",
+      "name": "全部商品",
+      "icon": "chest"
+    },
+    {
+      "id": "ores",
+      "name": "💎 矿石宝石",
+      "icon": "diamond"
+    },
+    {
+      "id": "blocks",
+      "name": "🧱 建筑材料",
+      "icon": "stone"
+    },
+    {
+      "id": "farming",
+      "name": "🥩 农牧食物",
+      "icon": "cooked_beef"
+    },
+    {
+      "id": "tools",
+      "name": "⚔️ 工具武器",
+      "icon": "iron_sword"
+    },
+    {
+      "id": "redstone",
+      "name": "⚙️ 红石机械",
+      "icon": "redstone"
+    },
+    {
+      "id": "misc",
+      "name": "📦 杂项道具",
+      "icon": "torch"
+    }
   ],
   "items": [
     {
       "id": "diamond",
-      "itemId": 264,
+      "itemId": 318,
       "name": "钻石",
       "category": "ores",
       "buyPrice": 100.0,
@@ -24,7 +52,7 @@
     },
     {
       "id": "emerald",
-      "itemId": 388,
+      "itemId": 38,
       "name": "绿宝石",
       "category": "ores",
       "buyPrice": 80.0,
@@ -34,7 +62,7 @@
     },
     {
       "id": "gold_ingot",
-      "itemId": 266,
+      "itemId": 316,
       "name": "金锭",
       "category": "ores",
       "buyPrice": 30.0,
@@ -44,7 +72,7 @@
     },
     {
       "id": "iron_ingot",
-      "itemId": 265,
+      "itemId": 315,
       "name": "铁锭",
       "category": "ores",
       "buyPrice": 10.0,
@@ -54,7 +82,7 @@
     },
     {
       "id": "coal",
-      "itemId": 263,
+      "itemId": 311,
       "name": "煤炭",
       "category": "ores",
       "buyPrice": 4.0,
@@ -64,7 +92,7 @@
     },
     {
       "id": "lapis_lazuli",
-      "itemId": 351,
+      "itemId": 319,
       "name": "青金石",
       "category": "ores",
       "buyPrice": 6.0,
@@ -104,7 +132,7 @@
     },
     {
       "id": "oak_log",
-      "itemId": 17,
+      "itemId": 6,
       "name": "橡木原木",
       "category": "blocks",
       "buyPrice": 2.0,
@@ -124,7 +152,7 @@
     },
     {
       "id": "glass",
-      "itemId": 20,
+      "itemId": 10,
       "name": "玻璃",
       "category": "blocks",
       "buyPrice": 2.0,
@@ -134,7 +162,7 @@
     },
     {
       "id": "bricks",
-      "itemId": 45,
+      "itemId": 11,
       "name": "红砖块",
       "category": "blocks",
       "buyPrice": 4.0,
@@ -144,7 +172,7 @@
     },
     {
       "id": "obsidian",
-      "itemId": 49,
+      "itemId": 24,
       "name": "黑曜石",
       "category": "blocks",
       "buyPrice": 60.0,
@@ -154,7 +182,7 @@
     },
     {
       "id": "cooked_beef",
-      "itemId": 364,
+      "itemId": 341,
       "name": "牛排",
       "category": "farming",
       "buyPrice": 8.0,
@@ -164,7 +192,7 @@
     },
     {
       "id": "cooked_porkchop",
-      "itemId": 320,
+      "itemId": 343,
       "name": "熟猪排",
       "category": "farming",
       "buyPrice": 8.0,
@@ -174,7 +202,7 @@
     },
     {
       "id": "bread",
-      "itemId": 297,
+      "itemId": 339,
       "name": "面包",
       "category": "farming",
       "buyPrice": 3.0,
@@ -184,7 +212,7 @@
     },
     {
       "id": "golden_apple",
-      "itemId": 322,
+      "itemId": 338,
       "name": "金苹果",
       "category": "farming",
       "buyPrice": 150.0,
@@ -194,7 +222,7 @@
     },
     {
       "id": "wheat",
-      "itemId": 296,
+      "itemId": 336,
       "name": "小麦",
       "category": "farming",
       "buyPrice": 2.0,
@@ -204,7 +232,7 @@
     },
     {
       "id": "carrot",
-      "itemId": 391,
+      "itemId": 350,
       "name": "胡萝卜",
       "category": "farming",
       "buyPrice": 2.0,
@@ -214,7 +242,7 @@
     },
     {
       "id": "potato",
-      "itemId": 392,
+      "itemId": 351,
       "name": "马铃薯",
       "category": "farming",
       "buyPrice": 2.0,
@@ -244,7 +272,7 @@
     },
     {
       "id": "iron_sword",
-      "itemId": 267,
+      "itemId": 266,
       "name": "铁剑",
       "category": "tools",
       "buyPrice": 25.0,
@@ -254,7 +282,7 @@
     },
     {
       "id": "iron_pickaxe",
-      "itemId": 257,
+      "itemId": 268,
       "name": "铁镐",
       "category": "tools",
       "buyPrice": 30.0,
@@ -264,7 +292,7 @@
     },
     {
       "id": "bow",
-      "itemId": 261,
+      "itemId": 301,
       "name": "弓",
       "category": "tools",
       "buyPrice": 30.0,
@@ -274,7 +302,7 @@
     },
     {
       "id": "arrow",
-      "itemId": 262,
+      "itemId": 302,
       "name": "箭矢",
       "category": "tools",
       "buyPrice": 1.0,
@@ -284,7 +312,7 @@
     },
     {
       "id": "shield",
-      "itemId": 442,
+      "itemId": 303,
       "name": "盾牌",
       "category": "tools",
       "buyPrice": 20.0,
@@ -294,7 +322,7 @@
     },
     {
       "id": "redstone_dust",
-      "itemId": 108,
+      "itemId": 320,
       "name": "红石粉",
       "category": "redstone",
       "buyPrice": 5.0,
@@ -304,7 +332,7 @@
     },
     {
       "id": "piston",
-      "itemId": 168,
+      "itemId": 358,
       "name": "活塞",
       "category": "redstone",
       "buyPrice": 15.0,
@@ -314,7 +342,7 @@
     },
     {
       "id": "sticky_piston",
-      "itemId": 169,
+      "itemId": 359,
       "name": "粘性活塞",
       "category": "redstone",
       "buyPrice": 25.0,
@@ -324,7 +352,7 @@
     },
     {
       "id": "tnt",
-      "itemId": 46,
+      "itemId": 27,
       "name": "TNT",
       "category": "redstone",
       "buyPrice": 50.0,
@@ -334,7 +362,7 @@
     },
     {
       "id": "repeater",
-      "itemId": 166,
+      "itemId": 356,
       "name": "红石中继器",
       "category": "redstone",
       "buyPrice": 8.0,
@@ -344,7 +372,7 @@
     },
     {
       "id": "hopper",
-      "itemId": 193,
+      "itemId": 385,
       "name": "漏斗",
       "category": "redstone",
       "buyPrice": 25.0,
@@ -354,7 +382,7 @@
     },
     {
       "id": "torch",
-      "itemId": 50,
+      "itemId": 82,
       "name": "火把",
       "category": "misc",
       "buyPrice": 1.0,
@@ -364,7 +392,7 @@
     },
     {
       "id": "water_bucket",
-      "itemId": 326,
+      "itemId": 307,
       "name": "水桶",
       "category": "misc",
       "buyPrice": 20.0,
@@ -374,7 +402,7 @@
     },
     {
       "id": "lava_bucket",
-      "itemId": 327,
+      "itemId": 308,
       "name": "岩浆桶",
       "category": "misc",
       "buyPrice": 30.0,
@@ -384,7 +412,7 @@
     },
     {
       "id": "bone",
-      "itemId": 352,
+      "itemId": 325,
       "name": "骨头",
       "category": "misc",
       "buyPrice": 3.0,
@@ -394,7 +422,7 @@
     },
     {
       "id": "ender_pearl",
-      "itemId": 368,
+      "itemId": 334,
       "name": "末影珍珠",
       "category": "misc",
       "buyPrice": 80.0,

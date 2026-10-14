@@ -169,6 +169,11 @@ func init() {
 			return true
 		}
 		if s.block(r, x, y, z) == 0 {
+			if !s.allowBlock(p, blockKey(x, y, z), blkFlintFire) {
+				s.broadcastChunk(r, blockKey(x, y, z), s.block(r, x, y, z))
+				s.inventory(p, 0, 0)
+				return true
+			}
 			if !s.setBlock(r, x, y, z, blkFlintFire, 0) {
 				return true
 			}
@@ -190,6 +195,10 @@ func init() {
 		x, y, z := m.X+at[0], m.Y+at[1], m.Z+at[2]
 		if r.inside(x, z) && y >= 0 && y < 128 {
 			if s.block(r, x, y, z) == blkFlintFire {
+				if !s.allowBlock(p, blockKey(x, y, z), 0) {
+					s.broadcastChunk(r, blockKey(x, y, z), s.block(r, x, y, z))
+					return true
+				}
 				if !s.setBlock(r, x, y, z, 0, 0) {
 					return true
 				}

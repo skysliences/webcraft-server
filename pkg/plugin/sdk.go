@@ -185,6 +185,34 @@ func (c *Context) SetPlayerNametagFull(worldID string, playerID uint16, info Nam
 	})
 }
 
+// Withdraw 从事件触发者玩家的经济账户扣除金币
+func (c *Context) Withdraw(e *Event, amount float64, reason string) {
+	if e != nil && e.Player != nil && e.World != nil && amount > 0 {
+		c.Actions = append(c.Actions, Action{
+			Type:      "economy_withdraw",
+			WorldID:   e.World.ID,
+			PlayerID:  e.Player.ID,
+			AccountID: e.Player.AccountID,
+			Amount:    amount,
+			Reason:    reason,
+		})
+	}
+}
+
+// Deposit 向事件触发者玩家的经济账户存入金币
+func (c *Context) Deposit(e *Event, amount float64, reason string) {
+	if e != nil && e.Player != nil && e.World != nil && amount > 0 {
+		c.Actions = append(c.Actions, Action{
+			Type:      "economy_deposit",
+			WorldID:   e.World.ID,
+			PlayerID:  e.Player.ID,
+			AccountID: e.Player.AccountID,
+			Amount:    amount,
+			Reason:    reason,
+		})
+	}
+}
+
 type Handler func(*Context, *Event) error
 type CommandHandler func(*Context, *Event, []string) error
 type listener struct {

@@ -1,0 +1,16 @@
+{
+  "id": "residence",
+  "name": "领地保护系统",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "residence",
+  "args": [],
+  "enabled": true,
+  "description": "提供 10*10、50*50、100*100 的立方体领地购买、权限分配、访客出入控制与怪物刷新限制",
+  "config": {
+    "pricePerBlock": 10.0,
+    "refundRate": 0.8,
+    "maxResPerUser": 5,
+    "allowOpBypass": true
+  }
+}

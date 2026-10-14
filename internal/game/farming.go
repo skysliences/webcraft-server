@@ -160,6 +160,11 @@ func init() {
 					cropBlock = blkPotatoMin
 				}
 				if cropBlock != 0 {
+					if !s.allowBlock(p, blockKey(m.X, m.Y+1, m.Z), cropBlock) {
+						s.broadcastChunk(r, blockKey(m.X, m.Y+1, m.Z), s.block(r, m.X, m.Y+1, m.Z))
+						s.inventory(p, 0, 0)
+						return true
+					}
 					s.setBlock(r, m.X, m.Y+1, m.Z, cropBlock, setQuiet)
 					s.consumeHeld(p, 1)
 					soundAt(r, "item.crop.plant", float64(m.X)+.5, float64(m.Y)+1.5, float64(m.Z)+.5, nil)

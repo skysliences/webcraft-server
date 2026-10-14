@@ -174,25 +174,30 @@ func (s *Server) handleNametagCommands(p *Peer, cmd string, parts []string) (boo
 			}
 			prefixText = parts[1]
 		} else {
-			if !isOp {
-				p.sys("只有管理员可以为其他玩家设置前缀。")
-				return true, false
-			}
-			target = s.findPeerByName(parts[1])
-			if target == nil {
-				if p != nil {
-					p.sys("目标玩家不在线。")
+			matchedPeer := s.findPeerByName(parts[1])
+			if isOp && matchedPeer != nil {
+				target = matchedPeer
+				prefixText = strings.Join(parts[2:], " ")
+			} else {
+				if target == nil {
+					return true, false
 				}
-				return true, false
+				prefixText = strings.Join(parts[1:], " ")
 			}
-			prefixText = strings.Join(parts[2:], " ")
+		}
+		if strings.EqualFold(prefixText, "clear") || strings.EqualFold(prefixText, "none") {
+			prefixText = ""
 		}
 
 		info := s.getPlayerNametag(target).Clone()
 		info.Prefix = prefixText
 		s.setPlayerNametag(target, info, true)
 		if p != nil {
-			p.sys(fmt.Sprintf("已成功为 %s 设置前缀：%s", target.name, prefixText))
+			if prefixText == "" {
+				p.sys(fmt.Sprintf("已成功清除 %s 的前缀。", target.name))
+			} else {
+				p.sys(fmt.Sprintf("已成功为 %s 设置前缀：%s", target.name, prefixText))
+			}
 		}
 		return true, true
 
@@ -211,25 +216,30 @@ func (s *Server) handleNametagCommands(p *Peer, cmd string, parts []string) (boo
 			}
 			suffixText = parts[1]
 		} else {
-			if !isOp {
-				p.sys("只有管理员可以为其他玩家设置后缀。")
-				return true, false
-			}
-			target = s.findPeerByName(parts[1])
-			if target == nil {
-				if p != nil {
-					p.sys("目标玩家不在线。")
+			matchedPeer := s.findPeerByName(parts[1])
+			if isOp && matchedPeer != nil {
+				target = matchedPeer
+				suffixText = strings.Join(parts[2:], " ")
+			} else {
+				if target == nil {
+					return true, false
 				}
-				return true, false
+				suffixText = strings.Join(parts[1:], " ")
 			}
-			suffixText = strings.Join(parts[2:], " ")
+		}
+		if strings.EqualFold(suffixText, "clear") || strings.EqualFold(suffixText, "none") {
+			suffixText = ""
 		}
 
 		info := s.getPlayerNametag(target).Clone()
 		info.Suffix = suffixText
 		s.setPlayerNametag(target, info, true)
 		if p != nil {
-			p.sys(fmt.Sprintf("已成功为 %s 设置后缀：%s", target.name, suffixText))
+			if suffixText == "" {
+				p.sys(fmt.Sprintf("已成功清除 %s 的后缀。", target.name))
+			} else {
+				p.sys(fmt.Sprintf("已成功为 %s 设置后缀：%s", target.name, suffixText))
+			}
 		}
 		return true, true
 

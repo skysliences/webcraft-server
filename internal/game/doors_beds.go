@@ -217,6 +217,12 @@ func init() {
 				return true
 			}
 			doorLower := blkDoorBase + facing
+			if !s.allowBlock(p, blockKey(x, y, z), doorLower) || !s.allowBlock(p, blockKey(x, y+1, z), blkDoorUpper) {
+				s.broadcastChunk(r, blockKey(x, y, z), s.block(r, x, y, z))
+				s.broadcastChunk(r, blockKey(x, y+1, z), s.block(r, x, y+1, z))
+				s.inventory(p, 0, 0)
+				return true
+			}
 			s.setBlock(r, x, y, z, doorLower, setQuiet)
 			s.setBlock(r, x, y+1, z, blkDoorUpper, setQuiet)
 			s.consumeHeld(p, 1)
@@ -240,6 +246,12 @@ func init() {
 			}
 			bedFoot := blkBedBase + facing
 			bedHead := blkBedHead + facing
+			if !s.allowBlock(p, blockKey(x, y, z), bedFoot) || !s.allowBlock(p, blockKey(hx, y, hz), bedHead) {
+				s.broadcastChunk(r, blockKey(x, y, z), s.block(r, x, y, z))
+				s.broadcastChunk(r, blockKey(hx, y, hz), s.block(r, hx, y, hz))
+				s.inventory(p, 0, 0)
+				return true
+			}
 			s.setBlock(r, x, y, z, bedFoot, setQuiet)
 			s.setBlock(r, hx, y, hz, bedHead, setQuiet)
 			s.consumeHeld(p, 1)

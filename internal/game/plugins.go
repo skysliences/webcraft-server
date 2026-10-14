@@ -31,6 +31,11 @@ func (s *Server) event(name string, r *Room, p *Peer, data map[string]any) *api.
 	}
 	if p != nil {
 		e.Player = &api.Player{ID: p.id, UID: p.builder, AccountID: p.sid, Name: p.name, Owner: p.owner, Operator: s.isOperator(p.sid)}
+		if s.economyDB != nil && p.sid != "" {
+			if bal, err := s.getEconomyBalance(p.sid); err == nil {
+				e.Player.Balance = bal
+			}
+		}
 		if s.identity != nil {
 			e.Identity = &api.Identity{ID: p.sid, Name: p.name, Issuer: s.identity.issuer}
 		}
@@ -69,6 +74,9 @@ func (s *Server) event(name string, r *Room, p *Peer, data map[string]any) *api.
 }
 func (s *Server) emit(name string, r *Room, p *Peer, data map[string]any) *api.Event {
 	e := s.event(name, r, p, data)
+	if s.residence != nil {
+		s.residence.CheckEvent(r, p, e)
+	}
 	if s.testEventHook != nil {
 		s.testEventHook(e)
 	}
@@ -93,11 +101,13 @@ func (s *Server) queueActions(actions []plugins.Intent) {
 func (s *Server) allowed(name string, r *Room, p *Peer, data map[string]any) bool {
 	e := s.emit(name, r, p, data)
 	if e.Cancelled && p != nil {
-		reason := e.Reason
-		if reason == "" {
-			reason = "此操作已被插件阻止。"
+		if silent, _ := e.Data["silentCancel"].(bool); !silent {
+			reason := e.Reason
+			if reason == "" {
+				reason = "此操作已被插件阻止。"
+			}
+			p.sys(limitText(reason, 240))
 		}
-		p.sys(limitText(reason, 240))
 	}
 	return !e.Cancelled
 }
@@ -490,6 +500,46 @@ func (s *Server) applyAction(a api.Action) {
 		}
 	case "heal":
 		s.heal(p, a.Amount, "plugin")
+	case "economy_withdraw":
+		if p != nil && s.economyDB != nil && a.Amount > 0 && p.sid != "" {
+			reason := a.Reason
+			if reason == "" {
+				reason = "plugin.withdraw"
+			}
+			newBal, err := s.economyDB.Withdraw(p.sid, a.Amount, reason)
+			if err != nil {
+				p.sys(fmt.Sprintf("扣款失败：%v", err))
+			} else {
+				p.json(map[string]any{"t": "economy_balance", "balance": newBal})
+				s.emit(api.EconomyBalanceChanged, r, p, map[string]any{
+					"account": p.sid,
+					"player":  p.name,
+					"amount":  -a.Amount,
+					"balance": newBal,
+					"reason":  reason,
+				})
+			}
+		}
+	case "economy_deposit":
+		if p != nil && s.economyDB != nil && a.Amount > 0 && p.sid != "" {
+			reason := a.Reason
+			if reason == "" {
+				reason = "plugin.deposit"
+			}
+			newBal, err := s.economyDB.Deposit(p.sid, p.name, a.Amount, reason)
+			if err != nil {
+				log.Printf("deposit error: %v", err)
+			} else {
+				p.json(map[string]any{"t": "economy_balance", "balance": newBal})
+				s.emit(api.EconomyBalanceChanged, r, p, map[string]any{
+					"account": p.sid,
+					"player":  p.name,
+					"amount":  a.Amount,
+					"balance": newBal,
+					"reason":  reason,
+				})
+			}
+		}
 	case "damage_player":
 		s.damagePlayer(p, a.Amount, a.Reason, &api.DamageContext{Cause: "plugin"})
 	case "damage_entity":

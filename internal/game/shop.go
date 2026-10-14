@@ -56,6 +56,49 @@ var (
 	shopOnce   sync.Once
 )
 
+// standardShopItemIDs 提供官方标准商品与核心物品/方块的精准映射
+var standardShopItemIDs = map[string]int{
+	"diamond":         318, // 钻石 (Diamond)
+	"emerald":         38,  // 绿宝石方块 (Block of Emerald)
+	"gold_ingot":      316, // 金锭 (Gold Ingot)
+	"iron_ingot":      315, // 铁锭 (Iron Ingot)
+	"coal":            311, // 煤炭 (Coal)
+	"lapis_lazuli":    319, // 青金石 (Lapis Lazuli)
+	"stone":           1,   // 石头 (Stone)
+	"cobblestone":     4,   // 圆石 (Cobblestone)
+	"dirt":            3,   // 泥土 (Dirt)
+	"oak_log":         6,   // 橡木原木 (Oak Log)
+	"oak_planks":      5,   // 橡木木板 (Oak Planks)
+	"glass":           10,  // 玻璃 (Glass)
+	"bricks":          11,  // 红砖块 (Bricks)
+	"obsidian":        24,  // 黑曜石 (Obsidian)
+	"cooked_beef":     341, // 牛排 (Steak)
+	"cooked_porkchop": 343, // 熟猪排 (Cooked Porkchop)
+	"bread":           339, // 面包 (Bread)
+	"golden_apple":    338, // 金苹果 (Golden Apple)
+	"wheat":           336, // 小麦 (Wheat)
+	"carrot":          350, // 胡萝卜 (Carrot)
+	"potato":          351, // 马铃薯 (Potato)
+	"diamond_sword":   276, // 钻石剑 (Diamond Sword)
+	"diamond_pickaxe": 278, // 钻石镐 (Diamond Pickaxe)
+	"iron_sword":      266, // 铁剑 (Iron Sword)
+	"iron_pickaxe":    268, // 铁镐 (Iron Pickaxe)
+	"bow":             301, // 弓 (Bow)
+	"arrow":           302, // 箭矢 (Arrow)
+	"shield":          303, // 盾牌 (Shield)
+	"redstone_dust":   320, // 红石粉 (Spark Dust)
+	"piston":          358, // 活塞 (Piston)
+	"sticky_piston":   359, // 粘性活塞 (Sticky Piston)
+	"tnt":             27,  // TNT
+	"repeater":        356, // 红石中继器 (Redstone Repeater)
+	"hopper":          385, // 漏斗 (Hopper)
+	"torch":           82,  // 火把 (Torch)
+	"water_bucket":    307, // 水桶 (Water Bucket)
+	"lava_bucket":     308, // 岩浆桶 (Lava Bucket)
+	"bone":            325, // 骨头 (Bone)
+	"ender_pearl":     334, // 末影珍珠 (Blink Pearl)
+}
+
 // defaultShopConfig 提供丰富的默认开箱即用商品列表与回收定价
 func defaultShopConfig() ShopConfig {
 	return ShopConfig{
@@ -72,55 +115,55 @@ func defaultShopConfig() ShopConfig {
 		},
 		Items: []ShopItem{
 			// --- 矿石贵重品 (Ores & Gems) ---
-			{ID: "diamond", ItemID: 264, Name: "钻石", Category: "ores", BuyPrice: 100.0, SellPrice: 50.0, Icon: "diamond", Description: "极为珍贵的蓝色宝石"},
-			{ID: "emerald", ItemID: 388, Name: "绿宝石", Category: "ores", BuyPrice: 80.0, SellPrice: 40.0, Icon: "emerald", Description: "村民贸易常用通用货币"},
-			{ID: "gold_ingot", ItemID: 266, Name: "金锭", Category: "ores", BuyPrice: 30.0, SellPrice: 15.0, Icon: "gold_ingot", Description: "闪烁着金黄光芒的贵金属"},
-			{ID: "iron_ingot", ItemID: 265, Name: "铁锭", Category: "ores", BuyPrice: 10.0, SellPrice: 5.0, Icon: "iron_ingot", Description: "工业与装备制造的基础支柱"},
-			{ID: "coal", ItemID: 263, Name: "煤炭", Category: "ores", BuyPrice: 4.0, SellPrice: 2.0, Icon: "coal", Description: "熔炉冶炼不可或缺的燃料"},
-			{ID: "lapis_lazuli", ItemID: 351, Name: "青金石", Category: "ores", BuyPrice: 6.0, SellPrice: 3.0, Icon: "lapis_lazuli", Description: "附魔台施加附魔的必备染料"},
+			{ID: "diamond", ItemID: 318, Name: "钻石", Category: "ores", BuyPrice: 100.0, SellPrice: 50.0, Icon: "diamond", Description: "极为珍贵的蓝色宝石"},
+			{ID: "emerald", ItemID: 38, Name: "绿宝石", Category: "ores", BuyPrice: 80.0, SellPrice: 40.0, Icon: "emerald", Description: "村民贸易常用通用货币"},
+			{ID: "gold_ingot", ItemID: 316, Name: "金锭", Category: "ores", BuyPrice: 30.0, SellPrice: 15.0, Icon: "gold_ingot", Description: "闪烁着金黄光芒的贵金属"},
+			{ID: "iron_ingot", ItemID: 315, Name: "铁锭", Category: "ores", BuyPrice: 10.0, SellPrice: 5.0, Icon: "iron_ingot", Description: "工业与装备制造的基础支柱"},
+			{ID: "coal", ItemID: 311, Name: "煤炭", Category: "ores", BuyPrice: 4.0, SellPrice: 2.0, Icon: "coal", Description: "熔炉冶炼不可或缺的燃料"},
+			{ID: "lapis_lazuli", ItemID: 319, Name: "青金石", Category: "ores", BuyPrice: 6.0, SellPrice: 3.0, Icon: "lapis_lazuli", Description: "附魔台施加附魔的必备染料"},
 
 			// --- 建筑方块 (Blocks & Building) ---
 			{ID: "stone", ItemID: 1, Name: "石头", Category: "blocks", BuyPrice: 1.0, SellPrice: 0.5, Icon: "stone", Description: "地下开采烧制的基础石料"},
 			{ID: "cobblestone", ItemID: 4, Name: "圆石", Category: "blocks", BuyPrice: 0.5, SellPrice: 0.2, Icon: "cobblestone", Description: "粗糙坚硬的开采石料"},
 			{ID: "dirt", ItemID: 3, Name: "泥土", Category: "blocks", BuyPrice: 0.5, SellPrice: 0.1, Icon: "dirt", Description: "大地上最平凡肥沃的土壤"},
-			{ID: "oak_log", ItemID: 17, Name: "橡木原木", Category: "blocks", BuyPrice: 2.0, SellPrice: 1.0, Icon: "oak_wood", Description: "优质坚实的森林木材"},
+			{ID: "oak_log", ItemID: 6, Name: "橡木原木", Category: "blocks", BuyPrice: 2.0, SellPrice: 1.0, Icon: "oak_wood", Description: "优质坚实的森林木材"},
 			{ID: "oak_planks", ItemID: 5, Name: "橡木木板", Category: "blocks", BuyPrice: 0.8, SellPrice: 0.3, Icon: "oak_planks", Description: "原木加工成的平整木板"},
-			{ID: "glass", ItemID: 20, Name: "玻璃", Category: "blocks", BuyPrice: 2.0, SellPrice: 0.8, Icon: "glass", Description: "通透明亮的采光建筑方块"},
-			{ID: "bricks", ItemID: 45, Name: "红砖块", Category: "blocks", BuyPrice: 4.0, SellPrice: 1.5, Icon: "brick_block", Description: "粘土烧制规整的高档砖石"},
-			{ID: "obsidian", ItemID: 49, Name: "黑曜石", Category: "blocks", BuyPrice: 60.0, SellPrice: 25.0, Icon: "obsidian", Description: "水火交融淬炼而成的至坚岩石"},
+			{ID: "glass", ItemID: 10, Name: "玻璃", Category: "blocks", BuyPrice: 2.0, SellPrice: 0.8, Icon: "glass", Description: "通透明亮的采光建筑方块"},
+			{ID: "bricks", ItemID: 11, Name: "红砖块", Category: "blocks", BuyPrice: 4.0, SellPrice: 1.5, Icon: "brick_block", Description: "粘土烧制规整的高档砖石"},
+			{ID: "obsidian", ItemID: 24, Name: "黑曜石", Category: "blocks", BuyPrice: 60.0, SellPrice: 25.0, Icon: "obsidian", Description: "水火交融淬炼而成的至坚岩石"},
 
 			// --- 农牧食物 (Farming & Food) ---
-			{ID: "cooked_beef", ItemID: 364, Name: "牛排", Category: "farming", BuyPrice: 8.0, SellPrice: 4.0, Icon: "cooked_beef", Description: "鲜嫩多汁的高营养肉排"},
-			{ID: "cooked_porkchop", ItemID: 320, Name: "熟猪排", Category: "farming", BuyPrice: 8.0, SellPrice: 4.0, Icon: "cooked_porkchop", Description: "香气扑鼻的熟猪肉排"},
-			{ID: "bread", ItemID: 297, Name: "面包", Category: "farming", BuyPrice: 3.0, SellPrice: 1.5, Icon: "bread", Description: "小麦烘焙的松软口粮"},
-			{ID: "golden_apple", ItemID: 322, Name: "金苹果", Category: "farming", BuyPrice: 150.0, SellPrice: 60.0, Icon: "golden_apple", Description: "赋予再生与伤害吸收的奇迹果实"},
-			{ID: "wheat", ItemID: 296, Name: "小麦", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "wheat", Description: "金黄的成熟麦穗"},
-			{ID: "carrot", ItemID: 391, Name: "胡萝卜", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "carrot", Description: "脆甜可口的农场作物"},
-			{ID: "potato", ItemID: 392, Name: "马铃薯", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "potato", Description: "耐储存的高产块茎"},
+			{ID: "cooked_beef", ItemID: 341, Name: "牛排", Category: "farming", BuyPrice: 8.0, SellPrice: 4.0, Icon: "cooked_beef", Description: "鲜嫩多汁的高营养肉排"},
+			{ID: "cooked_porkchop", ItemID: 343, Name: "熟猪排", Category: "farming", BuyPrice: 8.0, SellPrice: 4.0, Icon: "cooked_porkchop", Description: "香气扑鼻的熟猪肉排"},
+			{ID: "bread", ItemID: 339, Name: "面包", Category: "farming", BuyPrice: 3.0, SellPrice: 1.5, Icon: "bread", Description: "小麦烘焙的松软口粮"},
+			{ID: "golden_apple", ItemID: 338, Name: "金苹果", Category: "farming", BuyPrice: 150.0, SellPrice: 60.0, Icon: "golden_apple", Description: "赋予再生与伤害吸收的奇迹果实"},
+			{ID: "wheat", ItemID: 336, Name: "小麦", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "wheat", Description: "金黄的成熟麦穗"},
+			{ID: "carrot", ItemID: 350, Name: "胡萝卜", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "carrot", Description: "脆甜可口的农场作物"},
+			{ID: "potato", ItemID: 351, Name: "马铃薯", Category: "farming", BuyPrice: 2.0, SellPrice: 1.0, Icon: "potato", Description: "耐储存的高产块茎"},
 
 			// --- 工具装备 (Tools & Combat) ---
 			{ID: "diamond_sword", ItemID: 276, Name: "钻石剑", Category: "tools", BuyPrice: 300.0, SellPrice: 100.0, Icon: "diamond_sword", Description: "削铁如泥的终极利刃"},
 			{ID: "diamond_pickaxe", ItemID: 278, Name: "钻石镐", Category: "tools", BuyPrice: 350.0, SellPrice: 120.0, Icon: "diamond_pickaxe", Description: "能够开采黑曜石的高级矿镐"},
-			{ID: "iron_sword", ItemID: 267, Name: "铁剑", Category: "tools", BuyPrice: 25.0, SellPrice: 10.0, Icon: "iron_sword", Description: "坚固实用的近战武器"},
-			{ID: "iron_pickaxe", ItemID: 257, Name: "铁镐", Category: "tools", BuyPrice: 30.0, SellPrice: 12.0, Icon: "iron_pickaxe", Description: "采掘金矿、红石与钻石的利器"},
-			{ID: "bow", ItemID: 261, Name: "弓", Category: "tools", BuyPrice: 30.0, SellPrice: 10.0, Icon: "bow", Description: "远程狙击敌人的强弓"},
-			{ID: "arrow", ItemID: 262, Name: "箭矢", Category: "tools", BuyPrice: 1.0, SellPrice: 0.3, Icon: "arrow", Description: "弓箭发射的尖锐弹药"},
-			{ID: "shield", ItemID: 442, Name: "盾牌", Category: "tools", BuyPrice: 20.0, SellPrice: 8.0, Icon: "shield", Description: "格挡正面物理与远程伤害的坚盾"},
+			{ID: "iron_sword", ItemID: 266, Name: "铁剑", Category: "tools", BuyPrice: 25.0, SellPrice: 10.0, Icon: "iron_sword", Description: "坚固实用的近战武器"},
+			{ID: "iron_pickaxe", ItemID: 268, Name: "铁镐", Category: "tools", BuyPrice: 30.0, SellPrice: 12.0, Icon: "iron_pickaxe", Description: "采掘金矿、红石与钻石的利器"},
+			{ID: "bow", ItemID: 301, Name: "弓", Category: "tools", BuyPrice: 30.0, SellPrice: 10.0, Icon: "bow", Description: "远程狙击敌人的强弓"},
+			{ID: "arrow", ItemID: 302, Name: "箭矢", Category: "tools", BuyPrice: 1.0, SellPrice: 0.3, Icon: "arrow", Description: "弓箭发射的尖锐弹药"},
+			{ID: "shield", ItemID: 303, Name: "盾牌", Category: "tools", BuyPrice: 20.0, SellPrice: 8.0, Icon: "shield", Description: "格挡正面物理与远程伤害的坚盾"},
 
 			// --- 红石机械 (Redstone & Mechanics) ---
-			{ID: "redstone_dust", ItemID: 108, Name: "红石粉", Category: "redstone", BuyPrice: 5.0, SellPrice: 2.5, Icon: "redstone", Description: "传输电信号的核心能源"},
-			{ID: "piston", ItemID: 168, Name: "活塞", Category: "redstone", BuyPrice: 15.0, SellPrice: 6.0, Icon: "piston", Description: "推动方块的机械装置"},
-			{ID: "sticky_piston", ItemID: 169, Name: "粘性活塞", Category: "redstone", BuyPrice: 25.0, SellPrice: 10.0, Icon: "sticky_piston", Description: "能够拉回方块的强力活塞"},
-			{ID: "tnt", ItemID: 46, Name: "TNT", Category: "redstone", BuyPrice: 50.0, SellPrice: 20.0, Icon: "tnt", Description: "威力巨大的易爆爆炸物"},
-			{ID: "repeater", ItemID: 166, Name: "红石中继器", Category: "redstone", BuyPrice: 8.0, SellPrice: 3.0, Icon: "repeater", Description: "延长红石信号并提供延迟"},
-			{ID: "hopper", ItemID: 193, Name: "漏斗", Category: "redstone", BuyPrice: 25.0, SellPrice: 10.0, Icon: "hopper", Description: "自动收集与传输物品的漏斗"},
+			{ID: "redstone_dust", ItemID: 320, Name: "红石粉", Category: "redstone", BuyPrice: 5.0, SellPrice: 2.5, Icon: "redstone", Description: "传输电信号的核心能源"},
+			{ID: "piston", ItemID: 358, Name: "活塞", Category: "redstone", BuyPrice: 15.0, SellPrice: 6.0, Icon: "piston", Description: "推动方块的机械装置"},
+			{ID: "sticky_piston", ItemID: 359, Name: "粘性活塞", Category: "redstone", BuyPrice: 25.0, SellPrice: 10.0, Icon: "sticky_piston", Description: "能够拉回方块的强力活塞"},
+			{ID: "tnt", ItemID: 27, Name: "TNT", Category: "redstone", BuyPrice: 50.0, SellPrice: 20.0, Icon: "tnt", Description: "威力巨大的易爆爆炸物"},
+			{ID: "repeater", ItemID: 356, Name: "红石中继器", Category: "redstone", BuyPrice: 8.0, SellPrice: 3.0, Icon: "repeater", Description: "延长红石信号并提供延迟"},
+			{ID: "hopper", ItemID: 385, Name: "漏斗", Category: "redstone", BuyPrice: 25.0, SellPrice: 10.0, Icon: "hopper", Description: "自动收集与传输物品的漏斗"},
 
 			// --- 杂项道具 (Misc) ---
-			{ID: "torch", ItemID: 50, Name: "火把", Category: "misc", BuyPrice: 1.0, SellPrice: 0.2, Icon: "torch", Description: "驱散黑暗并防止怪物生成的照明源"},
-			{ID: "water_bucket", ItemID: 326, Name: "水桶", Category: "misc", BuyPrice: 20.0, SellPrice: 8.0, Icon: "water_bucket", Description: "盛装生命之源清水的铁桶"},
-			{ID: "lava_bucket", ItemID: 327, Name: "岩浆桶", Category: "misc", BuyPrice: 30.0, SellPrice: 12.0, Icon: "lava_bucket", Description: "盛装高温岩浆的强力燃料桶"},
-			{ID: "bone", ItemID: 352, Name: "骨头", Category: "misc", BuyPrice: 3.0, SellPrice: 1.5, Icon: "bone", Description: "骷髅掉落的骨骼，可研磨为骨粉"},
-			{ID: "ender_pearl", ItemID: 368, Name: "末影珍珠", Category: "misc", BuyPrice: 80.0, SellPrice: 35.0, Icon: "ender_pearl", Description: "投掷后瞬移至落点的神奇珍珠"},
+			{ID: "torch", ItemID: 82, Name: "火把", Category: "misc", BuyPrice: 1.0, SellPrice: 0.2, Icon: "torch", Description: "驱散黑暗并防止怪物生成的照明源"},
+			{ID: "water_bucket", ItemID: 307, Name: "水桶", Category: "misc", BuyPrice: 20.0, SellPrice: 8.0, Icon: "water_bucket", Description: "盛装生命之源清水的铁桶"},
+			{ID: "lava_bucket", ItemID: 308, Name: "岩浆桶", Category: "misc", BuyPrice: 30.0, SellPrice: 12.0, Icon: "lava_bucket", Description: "盛装高温岩浆的强力燃料桶"},
+			{ID: "bone", ItemID: 325, Name: "骨头", Category: "misc", BuyPrice: 3.0, SellPrice: 1.5, Icon: "bone", Description: "骷髅掉落的骨骼，可研磨为骨粉"},
+			{ID: "ender_pearl", ItemID: 334, Name: "末影珍珠", Category: "misc", BuyPrice: 80.0, SellPrice: 35.0, Icon: "ender_pearl", Description: "投掷后瞬移至落点的神奇珍珠"},
 		},
 	}
 }
@@ -199,8 +242,44 @@ func (m *ShopManager) loadConfig() {
 		if item.MaxBuyPerTrade <= 0 {
 			item.MaxBuyPerTrade = 64
 		}
-		// 若配置中未填 itemId，尝试反查服务端的规则映射
-		if item.ItemID <= 0 && m.server != nil && m.server.rules != nil {
+		// 自动对齐核心真实物品ID：如果配置未填或命中旧版错误ID（如 diamond=264 等），自动校准
+		if stdID, ok := standardShopItemIDs[item.ID]; ok {
+			if item.ItemID <= 0 || item.ItemID == 264 && item.ID == "diamond" ||
+				item.ItemID == 266 && item.ID == "gold_ingot" ||
+				item.ItemID == 265 && item.ID == "iron_ingot" ||
+				item.ItemID == 263 && item.ID == "coal" ||
+				item.ItemID == 17 && item.ID == "oak_log" ||
+				item.ItemID == 20 && item.ID == "glass" ||
+				item.ItemID == 45 && item.ID == "bricks" ||
+				item.ItemID == 49 && item.ID == "obsidian" ||
+				item.ItemID == 364 && item.ID == "cooked_beef" ||
+				item.ItemID == 320 && item.ID == "cooked_porkchop" ||
+				item.ItemID == 297 && item.ID == "bread" ||
+				item.ItemID == 322 && item.ID == "golden_apple" ||
+				item.ItemID == 296 && item.ID == "wheat" ||
+				item.ItemID == 391 && item.ID == "carrot" ||
+				item.ItemID == 392 && item.ID == "potato" ||
+				item.ItemID == 267 && item.ID == "iron_sword" ||
+				item.ItemID == 257 && item.ID == "iron_pickaxe" ||
+				item.ItemID == 261 && item.ID == "bow" ||
+				item.ItemID == 262 && item.ID == "arrow" ||
+				item.ItemID == 442 && item.ID == "shield" ||
+				item.ItemID == 108 && item.ID == "redstone_dust" ||
+				item.ItemID == 168 && item.ID == "piston" ||
+				item.ItemID == 169 && item.ID == "sticky_piston" ||
+				item.ItemID == 46 && item.ID == "tnt" ||
+				item.ItemID == 166 && item.ID == "repeater" ||
+				item.ItemID == 193 && item.ID == "hopper" ||
+				item.ItemID == 50 && item.ID == "torch" ||
+				item.ItemID == 326 && item.ID == "water_bucket" ||
+				item.ItemID == 327 && item.ID == "lava_bucket" ||
+				item.ItemID == 352 && item.ID == "bone" ||
+				item.ItemID == 368 && item.ID == "ender_pearl" ||
+				item.ItemID == 351 && item.ID == "lapis_lazuli" ||
+				item.ItemID == 388 && item.ID == "emerald" {
+				item.ItemID = stdID
+			}
+		} else if item.ItemID <= 0 && m.server != nil && m.server.rules != nil {
 			if id, ok := m.server.rules.byName[item.Name]; ok {
 				item.ItemID = id
 			}

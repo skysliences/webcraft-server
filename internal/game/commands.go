@@ -422,6 +422,9 @@ func (s *Server) handleFullCommand(p *Peer, name string, parts []string) (handle
 
 	case "shop":
 		return s.handleShopCommand(p, parts)
+
+	case "res", "residence", "claim":
+		return s.handleResidenceCommand(p, args)
 	}
 
 	return false, false

@@ -66,6 +66,7 @@ type Player struct {
 	MaxHealth   float64                   `json:"maxHealth,omitempty"`
 	Permissions []string                  `json:"permissions,omitempty"`
 	Roles       []string                  `json:"roles,omitempty"`
+	Balance     float64                   `json:"balance"`
 }
 type EffectSnapshot struct {
 	Ticks     int `json:"ticks"`

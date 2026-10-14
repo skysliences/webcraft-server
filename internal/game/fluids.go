@@ -229,6 +229,18 @@ func (s *Server) distanceToDrop(r *Room, x, y, z int, dx, dz int, water bool) in
 	return 999
 }
 
+func (s *Server) residenceAllowsFluidFlow(r *Room, fx, fy, fz, tx, ty, tz int) bool {
+	if s.residence == nil || r == nil {
+		return true
+	}
+	toRes := s.residence.FindAt(r.ID, tx, ty, tz)
+	if toRes == nil {
+		return true
+	}
+	fromRes := s.residence.FindAt(r.ID, fx, fy, fz)
+	return fromRes == toRes
+}
+
 func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 	if !r.inside(x, z) || y < 1 || y >= 127 {
 		return
@@ -246,6 +258,9 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 
 	// 1. 优先向下流动 (瀑布流体)
 	if below == 0 || s.isWashable(below) || (water && isLava(below)) || (!water && isWater(below)) {
+		if !s.residenceAllowsFluidFlow(r, x, y, z, x, y-1, z) {
+			return
+		}
 		if water && isLava(below) {
 			s.setBlock(r, x, y-1, z, blkCobblestone, 0)
 			soundAt(r, "block.fire.extinguish", float64(x)+.5, float64(y-1)+.5, float64(z)+.5, nil)
@@ -319,7 +334,7 @@ func (s *Server) spreadFluid(r *Room, x, y, z, b int) {
 			}
 
 			nx, nz := x+d[0], z+d[1]
-			if !r.inside(nx, nz) {
+			if !r.inside(nx, nz) || !s.residenceAllowsFluidFlow(r, x, y, z, nx, y, nz) {
 				continue
 			}
 			target := s.block(r, nx, y, nz)

@@ -81,6 +81,7 @@ type Server struct {
 	testEventHook        func(*api.Event)
 	economyDB            *EconomyDB
 	shop                 *ShopManager
+	residence            *ResidenceManager
 }
 
 func New(config Config) (*Server, error) {
@@ -127,6 +128,7 @@ func New(config Config) (*Server, error) {
 		return nil, fmt.Errorf("open economy db: %w", err)
 	}
 	s.economyDB = econDB
+	s.residence = initResidenceManager(s, config.DataDir)
 	if err = s.loadRegistry(); err != nil {
 		engine.runtime.Close(context.Background())
 		return nil, err
@@ -683,6 +685,10 @@ type Message struct {
 	S              int             `json:"s"`
 	Item           string          `json:"item,omitempty"`
 	Count          int             `json:"count,omitempty"`
+	ResID          string          `json:"resId,omitempty"`
+	Size           int             `json:"size,omitempty"`
+	Flag           string          `json:"flag,omitempty"`
+	TargetPlayer   string          `json:"targetPlayer,omitempty"`
 	Blocking       bool            `json:"blocking"`
 	State          bool            `json:"state"`
 	X              int             `json:"x"`
@@ -1385,7 +1391,7 @@ func (s *Server) windowUpdates(p *Peer) {
 }
 func (s *Server) message(p *Peer, m Message) {
 	r := p.room
-	if r.Infinite && m.T != "chat" && !strings.HasPrefix(m.T, "trade_") && m.T != "custom_ui_response" && m.Epoch != p.epoch {
+	if r.Infinite && m.T != "chat" && !strings.HasPrefix(m.T, "trade_") && !strings.HasPrefix(m.T, "residence_") && m.T != "custom_ui_response" && m.Epoch != p.epoch {
 		return
 	}
 	switch m.T {
@@ -1395,7 +1401,27 @@ func (s *Server) message(p *Peer, m Message) {
 			s.command(p, msg)
 			return
 		}
-		e := s.emit(api.PlayerChatting, r, p, map[string]any{"message": limitText(msg, 120)})
+		tag := s.renderPlayerNametag(p)
+		prefix := ""
+		suffix := ""
+		displayName := p.name
+		nameColor := ""
+		if tag != nil {
+			prefix = tag.Prefix
+			suffix = tag.Suffix
+			if tag.DisplayName != "" {
+				displayName = tag.DisplayName
+			}
+			nameColor = tag.NameColor
+		}
+		chatData := map[string]any{
+			"message":     limitText(msg, 120),
+			"prefix":      prefix,
+			"suffix":      suffix,
+			"displayName": displayName,
+			"nameColor":   nameColor,
+		}
+		e := s.emit(api.PlayerChatting, r, p, chatData)
 		if e.Cancelled {
 			if e.Reason != "" {
 				p.sys(limitText(e.Reason, 240))
@@ -1403,13 +1429,37 @@ func (s *Server) message(p *Peer, m Message) {
 			return
 		}
 		msg = e.String("message")
+		if e.Data != nil {
+			if pfx, ok := e.Data["prefix"].(string); ok {
+				prefix = pfx
+			}
+			if sfx, ok := e.Data["suffix"].(string); ok {
+				suffix = sfx
+			}
+			if dn, ok := e.Data["displayName"].(string); ok {
+				displayName = dn
+			}
+			if nc, ok := e.Data["nameColor"].(string); ok {
+				nameColor = nc
+			}
+		}
 		v := []rune(msg)
 		if len(v) > 120 {
 			v = v[:120]
 		}
 		if len(v) > 0 {
-			broadcastWorld(r, map[string]any{"t": "chat", "id": p.id, "from": p.name, "m": string(v)}, nil)
-			s.emit(api.PlayerChat, r, p, map[string]any{"message": string(v)})
+			payload := map[string]any{
+				"t":           "chat",
+				"id":          p.id,
+				"from":        p.name,
+				"m":           string(v),
+				"prefix":      prefix,
+				"suffix":      suffix,
+				"displayName": displayName,
+				"nameColor":   nameColor,
+			}
+			broadcastWorld(r, payload, nil)
+			s.emit(api.PlayerChat, r, p, payload)
 		}
 	case "latency":
 		if m.Ping >= 0 {
