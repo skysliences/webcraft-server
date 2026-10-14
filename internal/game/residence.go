@@ -21,12 +21,13 @@ type Residence struct {
 	OwnerID   string                     `json:"ownerId"`   // 拥有者固定账号 ID (AccountID / SID)
 	OwnerName string                     `json:"ownerName"` // 拥有者玩家名
 	WorldID   string                     `json:"worldId"`   // 所在世界 ID
+	IsPublic  bool                       `json:"isPublic"`  // 是否为公共领地（仅管理员可创建与设置，显示蓝色光圈）
 	Center    [3]int                     `json:"center"`    // 中心坐标 [X, Y, Z]
 	Size      int                        `json:"size"`      // 边长尺寸（10, 50, 100）
 	MinPos    [3]int                     `json:"minPos"`    // 最小立方体边界 [minX, minY, minZ]
 	MaxPos    [3]int                     `json:"maxPos"`    // 最大立方体边界 [maxX, maxY, maxZ]
 	Cost      float64                    `json:"cost"`      // 购买价格（Size * Size * PricePerBlock）
-	Flags     map[string]bool            `json:"flags"`     // 全局标志：build, enter, monsters, pvp, container
+	Flags     map[string]bool            `json:"flags"`     // 全局标志：public, build, enter, monsters, pvp, container
 	Players   map[string]map[string]bool `json:"players"`   // 指定玩家权限：playerName -> flag -> bool
 	EnterMsg  string                     `json:"enterMsg"`  // 进入提示
 	LeaveMsg  string                     `json:"leaveMsg"`  // 离开提示
@@ -113,6 +114,10 @@ func (m *ResidenceManager) load() {
 				if r.Flags == nil {
 					r.Flags = make(map[string]bool)
 				}
+				if r.IsPublic || r.Flags["public"] {
+					r.IsPublic = true
+					r.Flags["public"] = true
+				}
 				if r.Players == nil {
 					r.Players = make(map[string]map[string]bool)
 				}
@@ -167,6 +172,28 @@ func (m *ResidenceManager) FindByID(id string) *Residence {
 	return m.residences[id]
 }
 
+func (m *ResidenceManager) isAdmin(p *Peer) bool {
+	if p == nil {
+		return false
+	}
+	if p.owner {
+		return true
+	}
+	if m.server != nil {
+		if m.server.isOperator(p.sid) || (p.name != "" && m.server.isOperator(p.name)) || m.server.hasPermission(p.sid, "server.op") || m.server.hasPermission(p.sid, "residence.admin") {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *ResidenceManager) isPublic(r *Residence) bool {
+	if r == nil {
+		return false
+	}
+	return r.IsPublic || (r.Flags != nil && r.Flags["public"])
+}
+
 func (m *ResidenceManager) isOwner(r *Residence, p *Peer) bool {
 	if r == nil || p == nil {
 		return false
@@ -181,13 +208,14 @@ func (m *ResidenceManager) isOwner(r *Residence, p *Peer) bool {
 }
 
 func (m *ResidenceManager) canManage(r *Residence, p *Peer) bool {
-	if m.isOwner(r, p) {
+	if m.isAdmin(p) {
 		return true
 	}
-	if p != nil && m.server != nil && m.server.isOperator(p.sid) {
-		return true
+	// 公共领地仅允许管理员进行设置与管理
+	if m.isPublic(r) {
+		return false
 	}
-	return false
+	return m.isOwner(r, p)
 }
 
 func (m *ResidenceManager) HasPermission(r *Residence, p *Peer, flag string) bool {
@@ -606,6 +634,7 @@ func (m *ResidenceManager) SendResidenceSync(p *Peer) {
 		"t":          "residence_sync",
 		"mySid":      p.sid,
 		"myName":     p.name,
+		"isAdmin":    m.isAdmin(p),
 		"worldId":    worldID,
 		"residences": list,
 	})
@@ -658,6 +687,7 @@ func (m *ResidenceManager) SendResidenceWindow(p *Peer) {
 		"t":             "residence_window",
 		"mySid":         p.sid,
 		"myName":        p.name,
+		"isAdmin":       m.isAdmin(p),
 		"worldId":       worldID,
 		"balance":       bal,
 		"pricePerBlock": m.pricePerBlock,
@@ -668,10 +698,14 @@ func (m *ResidenceManager) SendResidenceWindow(p *Peer) {
 	})
 }
 
-// CreateResidence 购买并创建领地
-func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool, string) {
+// CreateResidence 购买并创建领地（支持管理员创建公共领地）
+func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int, isPublic ...bool) (bool, string) {
 	if p == nil || p.state == nil || p.room == nil {
 		return false, "玩家状态异常"
+	}
+	wantPublic := len(isPublic) > 0 && isPublic[0]
+	if wantPublic && !m.isAdmin(p) {
+		return false, "只有管理员可以进行公共领地设置！"
 	}
 	name = strings.TrimSpace(name)
 	if len(name) < 1 || len(name) > 16 {
@@ -688,7 +722,7 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 		return false, fmt.Sprintf("领地名称【%s】已被占用，请更换其他名称", name)
 	}
 
-	// 检查玩家拥有领地数量上限
+	// 检查玩家拥有领地数量上限（管理员不受限制）
 	m.mu.RLock()
 	userResCount := 0
 	for _, r := range m.residences {
@@ -698,7 +732,7 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 	}
 	m.mu.RUnlock()
 
-	if userResCount >= m.maxPerUser && !m.server.isOperator(p.sid) {
+	if userResCount >= m.maxPerUser && !m.isAdmin(p) {
 		return false, fmt.Sprintf("你已拥有 %d 个领地，已达上限（最大 %d 个）", userResCount, m.maxPerUser)
 	}
 
@@ -723,27 +757,36 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 	minY := int(math.Max(0, float64(cy-half)))
 	maxY := int(math.Min(127, float64(cy+half-1)))
 
+	enterMsg := fmt.Sprintf("欢迎来到领地【%s】（主人: %s）。", name, p.name)
+	leaveMsg := fmt.Sprintf("你已离开领地【%s】。", name)
+	if wantPublic {
+		enterMsg = fmt.Sprintf("欢迎来到公共领地【%s】。", name)
+		leaveMsg = fmt.Sprintf("你已离开公共领地【%s】。", name)
+	}
+
 	newRes := &Residence{
 		ID:        fmt.Sprintf("res_%d_%s", time.Now().Unix(), name),
 		Name:      name,
 		OwnerID:   p.sid,
 		OwnerName: p.name,
 		WorldID:   p.room.ID,
+		IsPublic:  wantPublic,
 		Center:    [3]int{cx, cy, cz},
 		Size:      size,
 		MinPos:    [3]int{minX, minY, minZ},
 		MaxPos:    [3]int{maxX, maxY, maxZ},
 		Cost:      cost,
 		Flags: map[string]bool{
-			"build":     false, // 默认禁止外人建筑和破坏
-			"enter":     false, // 默认禁止未授权玩家进入
-			"monsters":  false, // 默认禁止刷怪
-			"pvp":       false, // 默认禁止打斗
-			"container": false, // 默认禁止外人翻箱
+			"public":    wantPublic,
+			"build":     false,      // 默认禁止外人建筑和破坏
+			"enter":     wantPublic, // 公共领地默认允许所有玩家进入，私人领地默认禁止未授权进入
+			"monsters":  false,      // 默认禁止刷怪
+			"pvp":       false,      // 默认禁止打斗
+			"container": false,      // 默认禁止外人翻箱
 		},
 		Players:   make(map[string]map[string]bool),
-		EnterMsg:  fmt.Sprintf("欢迎来到领地【%s】（主人: %s）。", name, p.name),
-		LeaveMsg:  fmt.Sprintf("你已离开领地【%s】。", name),
+		EnterMsg:  enterMsg,
+		LeaveMsg:  leaveMsg,
 		CreatedAt: time.Now().Unix(),
 	}
 
@@ -763,6 +806,7 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 		"name":       newRes.Name,
 		"size":       newRes.Size,
 		"cost":       newRes.Cost,
+		"isPublic":   newRes.IsPublic,
 		"center":     newRes.Center,
 		"minPos":     newRes.MinPos,
 		"maxPos":     newRes.MaxPos,
@@ -775,6 +819,10 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 	if newCost, ok := createData["cost"].(float64); ok && newCost >= 0 {
 		cost = newCost
 		newRes.Cost = newCost
+	}
+	if modPub, ok := createData["isPublic"].(bool); ok {
+		newRes.IsPublic = modPub
+		newRes.Flags["public"] = modPub
 	}
 
 	// 扣款
@@ -796,6 +844,9 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 	m.server.emit(api.ResidenceCreated, p.room, p, createData)
 	m.BroadcastResidenceSync(p.room)
 
+	if newRes.IsPublic {
+		return true, fmt.Sprintf("🎉 成功创建公共领地【%s】（蓝色光圈）！已扣除 $%.2f 金币。", name, cost)
+	}
 	return true, fmt.Sprintf("🎉 成功购买并创建领地【%s】！已扣除 $%.2f 金币。", name, cost)
 }
 
@@ -808,12 +859,11 @@ func (m *ResidenceManager) SetFlag(p *Peer, resID, flag string, val bool) (bool,
 	if res == nil {
 		return false, "领地不存在"
 	}
-	if !m.canManage(res, p) {
-		return false, "你不是领地主人，无权修改其标志"
-	}
 
-	flag = strings.ToLower(flag)
+	flag = strings.ToLower(strings.TrimSpace(flag))
 	switch flag {
+	case "public", "pub":
+		flag = "public"
 	case "monsters", "monster", "mob", "mobs":
 		flag = "monsters"
 	case "enter", "move":
@@ -825,7 +875,18 @@ func (m *ResidenceManager) SetFlag(p *Peer, resID, flag string, val bool) (bool,
 	case "container", "chest":
 		flag = "container"
 	default:
-		return false, "不支持的标志类型（可选: build, enter, container, monsters, pvp）"
+		return false, "不支持的标志类型（可选: public, build, enter, container, monsters, pvp）"
+	}
+
+	// 公共领地属性及公共领地的管理仅限管理员操作
+	if flag == "public" && !m.isAdmin(p) {
+		return false, "只有管理员可以进行公共领地设置！"
+	}
+	if !m.canManage(res, p) {
+		if m.isPublic(res) {
+			return false, "只有管理员可以进行公共领地设置！"
+		}
+		return false, "你不是领地主人，无权修改其标志"
 	}
 
 	flagData := map[string]any{
@@ -847,6 +908,17 @@ func (m *ResidenceManager) SetFlag(p *Peer, resID, flag string, val bool) (bool,
 		res.Flags = make(map[string]bool)
 	}
 	res.Flags[flag] = val
+	if flag == "public" {
+		res.IsPublic = val
+		if val {
+			res.Flags["enter"] = true
+			res.EnterMsg = fmt.Sprintf("欢迎来到公共领地【%s】。", res.Name)
+			res.LeaveMsg = fmt.Sprintf("你已离开公共领地【%s】。", res.Name)
+		} else {
+			res.EnterMsg = fmt.Sprintf("欢迎来到领地【%s】（主人: %s）。", res.Name, res.OwnerName)
+			res.LeaveMsg = fmt.Sprintf("你已离开领地【%s】。", res.Name)
+		}
+	}
 	m.mu.Unlock()
 	_ = m.save()
 
@@ -859,6 +931,12 @@ func (m *ResidenceManager) SetFlag(p *Peer, resID, flag string, val bool) (bool,
 		m.BroadcastResidenceSync(p.room)
 	}
 
+	if flag == "public" {
+		if val {
+			return true, fmt.Sprintf("已将领地【%s】设置为公共领地（显示蓝色光圈）。", res.Name)
+		}
+		return true, fmt.Sprintf("已取消领地【%s】的公共领地属性，恢复为普通领地。", res.Name)
+	}
 	stateStr := "已开启"
 	if !val {
 		stateStr = "已关闭"
@@ -876,6 +954,9 @@ func (m *ResidenceManager) SetPlayerPermission(p *Peer, resID, targetPlayer, fla
 		return false, "领地不存在"
 	}
 	if !m.canManage(res, p) {
+		if m.isPublic(res) {
+			return false, "只有管理员可以进行公共领地设置！"
+		}
 		return false, "你不是领地主人，无权设置成员权限"
 	}
 	targetPlayer = strings.TrimSpace(targetPlayer)
@@ -937,6 +1018,9 @@ func (m *ResidenceManager) RemovePlayerPermission(p *Peer, resID, targetPlayer s
 		return false, "领地不存在"
 	}
 	if !m.canManage(res, p) {
+		if m.isPublic(res) {
+			return false, "只有管理员可以进行公共领地设置！"
+		}
 		return false, "你不是领地主人，无权管理成员权限"
 	}
 	m.mu.Lock()
@@ -988,6 +1072,9 @@ func (m *ResidenceManager) RemoveResidence(p *Peer, resID string) (bool, string)
 		return false, "领地不存在"
 	}
 	if !m.canManage(res, p) {
+		if m.isPublic(res) {
+			return false, "只有管理员可以进行公共领地设置！"
+		}
 		return false, "你不是领地主人，无权删除该领地"
 	}
 
@@ -1054,7 +1141,8 @@ func registerResidenceHooks() {
 		if size <= 0 {
 			size = msg.I
 		}
-		ok, text := mgr.CreateResidence(p, name, size)
+		wantPublic := msg.IsPublic || msg.State
+		ok, text := mgr.CreateResidence(p, name, size, wantPublic)
 		p.json(map[string]any{
 			"t":       "residence_result",
 			"ok":      ok,
@@ -1192,7 +1280,7 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 
 	case "create":
 		if len(args) < 3 {
-			p.sys("§e用法: /res create <领地名称> <10|50|100>")
+			p.sys("§e用法: /res create <领地名称> <10|50|100> [public]")
 			return true, true
 		}
 		name := args[1]
@@ -1201,7 +1289,48 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 			p.sys("§c领地尺寸必须为 10, 50 或 100")
 			return true, true
 		}
-		ok, text := mgr.CreateResidence(p, name, size)
+		wantPub := false
+		if len(args) >= 4 {
+			arg3 := strings.ToLower(strings.TrimSpace(args[3]))
+			if arg3 == "public" || arg3 == "pub" || arg3 == "true" {
+				wantPub = true
+			}
+		}
+		ok, text := mgr.CreateResidence(p, name, size, wantPub)
+		if ok {
+			p.sys("§a" + text)
+		} else {
+			p.sys("§c" + text)
+		}
+		return true, true
+
+	case "public", "pub":
+		// 管理员快捷指令: /res public <true|false> 或 /res public <领地名> <true|false>
+		var targetRes *Residence
+		var valStr string
+		if len(args) == 2 {
+			targetRes = currentRes()
+			valStr = args[1]
+		} else if len(args) >= 3 {
+			targetRes = mgr.FindByID(args[1])
+			if targetRes == nil {
+				targetRes = mgr.FindByName(args[1])
+			}
+			valStr = args[2]
+		} else {
+			p.sys("§e用法: /res public [领地名] <true|false> (仅管理员可用)")
+			return true, true
+		}
+		if targetRes == nil {
+			p.sys("§c请站在领地内操作，或指定领地名称: /res public <领地名> <true|false>")
+			return true, true
+		}
+		val, valid := parseBoolArg(valStr)
+		if !valid {
+			p.sys("§c状态值必须为 true 或 false")
+			return true, true
+		}
+		ok, text := mgr.SetFlag(p, targetRes.ID, "public", val)
 		if ok {
 			p.sys("§a" + text)
 		} else {
@@ -1223,7 +1352,7 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 			}
 			flagName, valStr = args[2], args[3]
 		} else {
-			p.sys("§e用法: /res set [领地名] <build|enter|container|monsters|pvp> <true|false>")
+			p.sys("§e用法: /res set [领地名] <public|build|enter|container|monsters|pvp> <true|false>")
 			return true, true
 		}
 		if targetRes == nil {
@@ -1382,7 +1511,11 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 		}
 		p.sys("§6=== 领地列表 ===")
 		for _, r := range mgr.residences {
-			p.sys(fmt.Sprintf("§e• %s §7(主人: %s, 规格: %dx%d, 中心: [%d, %d, %d])", r.Name, r.OwnerName, r.Size, r.Size, r.Center[0], r.Center[1], r.Center[2]))
+			typeTag := "私人"
+			if mgr.isPublic(r) {
+				typeTag = "§b公共§7"
+			}
+			p.sys(fmt.Sprintf("§e• %s §7[%s, 主人: %s, 规格: %dx%d, 中心: [%d, %d, %d]]", r.Name, typeTag, r.OwnerName, r.Size, r.Size, r.Center[0], r.Center[1], r.Center[2]))
 		}
 		mgr.mu.RUnlock()
 		return true, true
@@ -1399,10 +1532,15 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 			return true, true
 		}
 		p.sys(fmt.Sprintf("§6=== 领地【%s】信息 ===", res.Name))
+		if mgr.isPublic(res) {
+			p.sys("§7领地类型: §b公共领地 (蓝色光圈)")
+		} else {
+			p.sys("§7领地类型: §a私人领地")
+		}
 		p.sys(fmt.Sprintf("§7所有者: §f%s", res.OwnerName))
 		p.sys(fmt.Sprintf("§7范围: §f%d x %d (三维立方体)", res.Size, res.Size))
 		p.sys(fmt.Sprintf("§7坐标: §f[%d, %d, %d] 到 [%d, %d, %d]", res.MinPos[0], res.MinPos[1], res.MinPos[2], res.MaxPos[0], res.MaxPos[1], res.MaxPos[2]))
-		p.sys(fmt.Sprintf("§7标志: 怪物=%v, 准入=%v, 建筑=%v, 容器=%v, PVP=%v", res.Flags["monsters"], res.Flags["enter"], res.Flags["build"], res.Flags["container"], res.Flags["pvp"]))
+		p.sys(fmt.Sprintf("§7标志: 公共=%v, 怪物=%v, 准入=%v, 建筑=%v, 容器=%v, PVP=%v", mgr.isPublic(res), res.Flags["monsters"], res.Flags["enter"], res.Flags["build"], res.Flags["container"], res.Flags["pvp"]))
 		return true, true
 
 	case "help":
@@ -1410,8 +1548,9 @@ func (s *Server) handleResidenceCommand(p *Peer, args []string) (bool, bool) {
 	default:
 		p.sys("§6=== 领地系统 (Residence) 指令 ===")
 		p.sys("§e/res §7- 打开领地图形化管理界面 (GUI)")
-		p.sys("§e/res create <名称> <10|50|100> §7- 以当前位置为中心购买领地")
-		p.sys("§e/res set <build|enter|container|monsters|pvp> <true|false> §7- 设置领地标志")
+		p.sys("§e/res create <名称> <10|50|100> [public] §7- 以当前位置为中心购买领地 (管理员可加 public 创建公共领地)")
+		p.sys("§e/res public [名称] <true|false> §7- 切换公共领地状态 (仅管理员可用)")
+		p.sys("§e/res set <public|build|enter|container|monsters|pvp> <true|false> §7- 设置领地标志")
 		p.sys("§e/res pset <玩家名> <build|enter|container> <true|false> §7- 设置玩家权限")
 		p.sys("§e/res padd <玩家名> / /res pdel <玩家名> §7- 快捷授权/移除成员")
 		p.sys("§e/res remove [名称] §7- 删除领地 (返还 80% 费用)")

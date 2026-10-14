@@ -689,6 +689,7 @@ type Message struct {
 	Size           int             `json:"size,omitempty"`
 	Flag           string          `json:"flag,omitempty"`
 	TargetPlayer   string          `json:"targetPlayer,omitempty"`
+	IsPublic       bool            `json:"isPublic,omitempty"`
 	Blocking       bool            `json:"blocking"`
 	State          bool            `json:"state"`
 	X              int             `json:"x"`
@@ -1391,7 +1392,7 @@ func (s *Server) windowUpdates(p *Peer) {
 }
 func (s *Server) message(p *Peer, m Message) {
 	r := p.room
-	if r.Infinite && m.T != "chat" && !strings.HasPrefix(m.T, "trade_") && !strings.HasPrefix(m.T, "residence_") && m.T != "custom_ui_response" && m.Epoch != p.epoch {
+	if r.Infinite && m.T != "chat" && m.T != "respawn" && !strings.HasPrefix(m.T, "trade_") && !strings.HasPrefix(m.T, "residence_") && m.T != "custom_ui_response" && m.Epoch != p.epoch {
 		return
 	}
 	switch m.T {

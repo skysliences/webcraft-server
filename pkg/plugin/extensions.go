@@ -263,7 +263,7 @@ func extensionEvents() []EventSpec {
 		PlayerNametagRendering:   {"prefix", "suffix", "displayName", "nameColor", "title", "titleColor", "titleIcon", "titleAnimation"},
 		ShopBuying:               {"count", "price"},
 		ShopSelling:              {"count", "price"},
-		ResidenceCreating:        {"cost"},
+		ResidenceCreating:        {"cost", "isPublic"},
 		ResidenceFlagChanging:    {"value"},
 	}
 	for _, name := range names {

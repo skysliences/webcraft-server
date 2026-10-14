@@ -186,4 +186,55 @@ func TestResidenceProtectionAndPermissions(t *testing.T) {
 	if !e.Cancelled {
 		t.Fatal("explosion block breaking inside residence should be cancelled")
 	}
+
+	// 11. Public Residence: Non-admin Alice cannot set public flag or create public residence
+	if ok, _ := s.residence.SetFlag(owner, res.ID, "public", true); ok {
+		t.Fatal("non-admin should not be allowed to set public flag on residence")
+	}
+	owner.state.X, owner.state.Z = 200.5, 200.5
+	if ok, _ := s.residence.CreateResidence(owner, "PublicTry", 10, true); ok {
+		t.Fatal("non-admin should not be allowed to create a public residence")
+	}
+
+	// 12. Admin CAN create a public residence and toggle public flag on AliceHome
+	admin := &Peer{
+		room:    r,
+		id:      3,
+		sid:     "admin_sid_3333333333333333333333",
+		name:    "Admin",
+		builder: "admin_uid",
+		owner:   true,
+		send:    make(chan packet, 256),
+		state: &Player{
+			X:      300.5,
+			Y:      65,
+			Z:      300.5,
+			Health: 20,
+			Food:   20,
+			Inv:    &Inventory{Slots: make(Stacks, 46)},
+		},
+		known: map[int]bool{},
+	}
+	r.Peers[admin] = true
+	_, _ = s.ensureEconomyAccount(admin)
+	_, _ = s.economyDB.Deposit(admin.sid, admin.name, 5000, "test_admin_init")
+
+	if ok, msg := s.residence.CreateResidence(admin, "SpawnPlaza", 10, true); !ok {
+		t.Fatalf("admin failed to create public residence: %s", msg)
+	}
+	pubRes := s.residence.FindByName("SpawnPlaza")
+	if pubRes == nil || !pubRes.IsPublic || !pubRes.Flags["public"] || !pubRes.Flags["enter"] {
+		t.Fatalf("public residence flags mismatch: %+v", pubRes)
+	}
+
+	// Admin converts AliceHome to public residence -> non-admin Alice can no longer manage it
+	if ok, msg := s.residence.SetFlag(admin, res.ID, "public", true); !ok {
+		t.Fatalf("admin failed to set public flag: %s", msg)
+	}
+	if !res.IsPublic || !res.Flags["public"] {
+		t.Fatal("AliceHome should now be marked as public")
+	}
+	if ok, _ := s.residence.SetFlag(owner, res.ID, "pvp", true); ok {
+		t.Fatal("non-admin should not be able to manage a public residence even if originally created by them")
+	}
 }
