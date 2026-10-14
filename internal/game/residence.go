@@ -226,12 +226,11 @@ func (m *ResidenceManager) HasPermission(r *Residence, p *Peer, flag string) boo
 	return false
 }
 
-// ejectPlayerOutside 将无权停留在领地内的玩家安全推出到领地边界外侧
-func (m *ResidenceManager) ejectPlayerOutside(p *Peer, res *Residence) {
-	if p == nil || p.state == nil || p.room == nil || res == nil {
-		return
+// FindSafeOutsidePos 计算领地边界外侧最近的安全落脚坐标
+func (m *ResidenceManager) FindSafeOutsidePos(room *Room, res *Residence, px, py, pz float64) (float64, float64, float64) {
+	if res == nil {
+		return px, py, pz
 	}
-	px, pz := p.state.X, p.state.Z
 	minX, maxX := float64(res.MinPos[0]), float64(res.MaxPos[0]+1)
 	minZ, maxZ := float64(res.MinPos[2]), float64(res.MaxPos[2]+1)
 
@@ -256,12 +255,21 @@ func (m *ResidenceManager) ejectPlayerOutside(p *Peer, res *Residence) {
 		outX, outZ = px, maxZ+1.5
 	}
 
-	outY := p.state.Y
-	if m.server != nil {
-		if sy := m.server.surface(p.room, int(math.Floor(outX)), int(math.Floor(outZ))); sy > 0 {
+	outY := py
+	if m.server != nil && room != nil {
+		if sy := m.server.surface(room, int(math.Floor(outX)), int(math.Floor(outZ))); sy > 0 {
 			outY = float64(sy)
 		}
 	}
+	return outX, outY, outZ
+}
+
+// ejectPlayerOutside 将无权停留在领地内的玩家安全推出到领地边界外侧
+func (m *ResidenceManager) ejectPlayerOutside(p *Peer, res *Residence) {
+	if p == nil || p.state == nil || p.room == nil || res == nil {
+		return
+	}
+	outX, outY, outZ := m.FindSafeOutsidePos(p.room, res, p.state.X, p.state.Y, p.state.Z)
 	p.state.X = outX
 	p.state.Y = outY
 	p.state.Z = outZ
@@ -295,6 +303,12 @@ func (m *ResidenceManager) ejectUnauthorizedPlayers(res *Residence) {
 // CheckEvent 在服务端事件分发时同步执行领地权限与保护规则拦截
 func (m *ResidenceManager) CheckEvent(r *Room, p *Peer, e *api.Event) {
 	if m == nil || e == nil || e.Cancelled {
+		return
+	}
+	if e.Name == api.PlayerJoined {
+		if p != nil {
+			m.SendResidenceSync(p)
+		}
 		return
 	}
 	m.mu.RLock()
@@ -569,6 +583,46 @@ func (m *ResidenceManager) CheckEvent(r *Room, p *Peer, e *api.Event) {
 	}
 }
 
+// SendResidenceSync 向单个客户端静默同步当前世界的领地列表数据（用于 3D 领地边界光圈渲染，不弹出 GUI）
+func (m *ResidenceManager) SendResidenceSync(p *Peer) {
+	if m == nil || p == nil {
+		return
+	}
+	worldID := ""
+	if p.room != nil {
+		worldID = p.room.ID
+	}
+
+	m.mu.RLock()
+	list := make([]*Residence, 0, len(m.residences))
+	for _, r := range m.residences {
+		if r.WorldID == worldID || (p.sid != "" && r.OwnerID == p.sid) || strings.EqualFold(r.OwnerName, p.name) {
+			list = append(list, r)
+		}
+	}
+	m.mu.RUnlock()
+
+	p.json(map[string]any{
+		"t":          "residence_sync",
+		"mySid":      p.sid,
+		"myName":     p.name,
+		"worldId":    worldID,
+		"residences": list,
+	})
+}
+
+// BroadcastResidenceSync 向指定房间内所有在线玩家广播最新领地列表
+func (m *ResidenceManager) BroadcastResidenceSync(r *Room) {
+	if m == nil || r == nil {
+		return
+	}
+	for peer := range r.Peers {
+		if peer != nil && !peer.closed {
+			m.SendResidenceSync(peer)
+		}
+	}
+}
+
 // SendResidenceWindow 向客户端下发领地完整 GUI 数据包
 func (m *ResidenceManager) SendResidenceWindow(p *Peer) {
 	if p == nil || p.state == nil {
@@ -602,6 +656,8 @@ func (m *ResidenceManager) SendResidenceWindow(p *Peer) {
 
 	p.json(map[string]any{
 		"t":             "residence_window",
+		"mySid":         p.sid,
+		"myName":        p.name,
 		"balance":       bal,
 		"pricePerBlock": m.pricePerBlock,
 		"refundRate":    m.refundRate,
@@ -735,8 +791,9 @@ func (m *ResidenceManager) CreateResidence(p *Peer, name string, size int) (bool
 	// 将领地内未授权的其他玩家安全移出领地
 	m.ejectUnauthorizedPlayers(newRes)
 
-	// 触发创建完成事件
+	// 触发创建完成事件并向全服/当前世界广播领地同步数据
 	m.server.emit(api.ResidenceCreated, p.room, p, createData)
+	m.BroadcastResidenceSync(p.room)
 
 	return true, fmt.Sprintf("🎉 成功购买并创建领地【%s】！已扣除 $%.2f 金币。", name, cost)
 }
@@ -797,6 +854,9 @@ func (m *ResidenceManager) SetFlag(p *Peer, resID, flag string, val bool) (bool,
 	}
 
 	m.server.emit(api.ResidenceFlagChanged, p.room, p, flagData)
+	if p != nil {
+		m.BroadcastResidenceSync(p.room)
+	}
 
 	stateStr := "已开启"
 	if !val {
@@ -855,6 +915,9 @@ func (m *ResidenceManager) SetPlayerPermission(p *Peer, resID, targetPlayer, fla
 	if flag == "enter" && !val {
 		m.ejectUnauthorizedPlayers(res)
 	}
+	if p != nil {
+		m.BroadcastResidenceSync(p.room)
+	}
 
 	stateStr := "授予"
 	if !val {
@@ -886,6 +949,9 @@ func (m *ResidenceManager) RemovePlayerPermission(p *Peer, resID, targetPlayer s
 	m.mu.Unlock()
 	_ = m.save()
 	m.ejectUnauthorizedPlayers(res)
+	if p != nil {
+		m.BroadcastResidenceSync(p.room)
+	}
 	return true, fmt.Sprintf("已移除玩家【%s】在领地【%s】中的所有自定义权限。", targetPlayer, res.Name)
 }
 
@@ -944,6 +1010,9 @@ func (m *ResidenceManager) RemoveResidence(p *Peer, resID string) (bool, string)
 		"actor":  p.sid,
 	}
 	m.server.emit(api.ResidenceRemoved, p.room, p, removeData)
+	if p != nil {
+		m.BroadcastResidenceSync(p.room)
+	}
 
 	return true, fmt.Sprintf("领地【%s】已删除并释放土地！已返还 $%.2f 金币。", res.Name, refund)
 }
@@ -960,6 +1029,13 @@ func registerResidenceHooks() {
 	onMessage("residence_open", func(s *Server, p *Peer, msg Message) bool {
 		if mgr := getMgr(s); mgr != nil {
 			mgr.SendResidenceWindow(p)
+		}
+		return true
+	})
+
+	onMessage("residence_sync", func(s *Server, p *Peer, msg Message) bool {
+		if mgr := getMgr(s); mgr != nil {
+			mgr.SendResidenceSync(p)
 		}
 		return true
 	})
